@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>visual test</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="topbar">
+  <div class="hud-group" id="hud-gold"><span class="icon">🪙</span><span id="gold">0</span></div>
+  <div class="hud-group" id="hud-pop">
+    <span class="pop">🧑‍🌾 <span id="pop-0">0</span></span>
+    <span class="pop">👨‍👩‍👧 <span id="pop-1">0</span></span>
+    <span class="pop">🎩 <span id="pop-2">0</span></span>
+  </div>
+  <div class="hud-group" id="hud-res"></div>
+  <div class="hud-group" id="hud-ctrl">
+    <button id="btn-pause">⏸</button>
+    <button id="btn-spd1" class="spd active">▶</button>
+    <button id="btn-spd2" class="spd">▶▶</button>
+    <button id="btn-spd3" class="spd">▶▶▶</button>
+    <button id="btn-mute">🔊</button>
+  </div>
+</div>
+<div id="goalbar"><span id="goal"></span></div>
+<div id="minimap-box"><canvas id="minimap" width="148" height="148"></canvas></div>
+<div id="panel" class="hidden">
+  <div id="panel-head"><span id="panel-title"></span><button id="panel-close">✕</button></div>
+  <div id="panel-body"></div>
+  <button id="panel-demolish" class="danger">🗑 Demolish</button>
+</div>
+<div id="toolbar-wrap"><div id="hint"></div><div id="toolbar"></div></div>
+<div id="toasts"></div>
+<div id="modal-trade" class="modal hidden"><div class="modal-box">
+  <div class="modal-head"><span>🚢 Trading Ship</span><button class="modal-close" data-close="modal-trade">✕</button></div>
+  <table id="trade-table"><tbody id="trade-rows"></tbody></table>
+</div></div>
+<div id="modal-help" class="modal hidden"><div class="modal-box">
+  <div class="modal-head"><span>❓ Help</span><button class="modal-close" data-close="modal-help">✕</button></div>
+  <div id="help-body"></div>
+</div></div>
+<div id="modal-stats" class="modal hidden"><div class="modal-box">
+  <div class="modal-head"><span>📊 Island Statistics</span><button class="modal-close" data-close="modal-stats">✕</button></div>
+  <div id="stats-body">
+    <canvas id="stats-graph" width="500" height="170"></canvas>
+    <div id="stats-legend">
+      <span class="lg"><i style="background:#8ad06c"></i> Pioneers</span>
+      <span class="lg"><i style="background:#e8c95a"></i> Settlers</span>
+      <span class="lg"><i style="background:#e8855a"></i> Citizens</span>
+    </div>
+    <table id="stats-goods">
+      <thead><tr><th>Good</th><th>Stock</th><th>Net/min</th><th>Trend</th></tr></thead>
+      <tbody id="stats-goods-rows"></tbody>
+    </table>
+  </div>
+</div></div>
+
+<script src="../js/config.js"></script>
+<script src="../js/nn.js"></script>
+<script src="../js/ai-weights.js"></script>
+<script src="../js/sprites.js"></script>
+<script src="../js/map.js"></script>
+<script src="../js/game.js"></script>
+<script src="../js/ai.js"></script>
+<script src="../js/render.js"></script>
+<script src="../js/ui.js"></script>
+<script src="../js/main.js"></script>
+<script>
+// Build a little town deterministically, fast-forward, then let the loop render it.
+(function () {
+  localStorage.removeItem(SAVE_KEY);
+  if (location.hash === '#auto') {
+    // let the neural net build the whole town
+    newGame(424242);
+    G.autopilot = true;
+    for (let i = 0; i < 1200; i++) simTick(0.5); // 10 minutes
+    const wh0 = G.buildings[0];
+    Render.rebuildGroundCache();
+    Render.cam.zoom = 1.1;
+    Render.centerOn(wh0.x + 1, wh0.y + 1);
+    UI.updateHUD();
+    return;
+  }
+  newGame(12345);
+  const wh = G.buildings[0];
+
+  // roads in all four directions
+  const dirs = [[1, 0, wh.x + 2, wh.y], [0, 1, wh.x, wh.y + 2], [-1, 0, wh.x - 1, wh.y], [0, -1, wh.x, wh.y - 1]];
+  for (const [dx, dy, sx, sy] of dirs) {
+    let cx = sx, cy = sy;
+    for (let i = 0; i < 10; i++) { placeRoad(cx, cy); cx += dx; cy += dy; }
+  }
+
+  function near(key, predExtra) {
+    const def = BUILDINGS[key];
+    for (let r = 1; r < 30; r++) {
+      for (let y = wh.y - r; y <= wh.y + r; y++) {
+        for (let x = wh.x - r; x <= wh.x + r; x++) {
+          if (Math.max(Math.abs(x - wh.x), Math.abs(y - wh.y)) !== r) continue;
+          if (!canPlace(key, x, y).ok) continue;
+          if (def.needsRoad && !footprintNeighbors(x, y, def.size).some(([nx, ny]) =>
+            inBounds(nx, ny) && G.roadOk[idx(nx, ny)])) continue;
+          if (predExtra && !predExtra(x, y)) continue;
+          return placeBuilding(key, x, y);
+        }
+      }
+    }
+    return null;
+  }
+
+  near('market');
+  near('chapel');
+  near('woodcutter');
+  near('fisher');
+  near('hunter');
+  for (let i = 0; i < 8; i++) near('house');
+  G.unlocked = 3;
+  near('sheep'); near('weaver'); near('tavern'); near('grain'); near('bakery');
+
+  G.stock.food = 290; G.stock.gold = 5000;
+  for (let i = 0; i < 1200; i++) simTick(0.5); // 10 minutes
+
+  Render.rebuildGroundCache();
+  Render.centerOn(wh.x + 1, wh.y + 1);
+  Render.cam.zoom = 1.4;
+  Render.centerOn(wh.x + 1, wh.y + 1);
+  UI.updateHUD();
+  if (location.hash === '#stats') UI.openModal('modal-stats');
+})();
+</script>
+</body>
+</html>
