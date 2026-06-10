@@ -33,6 +33,13 @@ const G = {
   popHist: [],          // [time, pioneers, settlers, citizens] every 5s
   popHistT: 0,
   autopilot: false,     // neural-net governor plays the game
+  islands: null,        // { ids, count, sizes } from flood fill
+  fertility: {},        // islandId -> { sheep, grain, potato }
+  pirate: null,         // active pirate ship
+  pirateT: 360,         // countdown to next raid
+  pirateSeen: false,
+  pirateSunk: 0,
+  shots: [],            // cannonball animations
 };
 
 const Hooks = { toast: null, sfx: null, onChange: null }; // wired up by UI
@@ -49,9 +56,18 @@ function sfx(name) { if (Hooks.sfx) Hooks.sfx(name); }
 function storageCap() {
   let cap = STORAGE_BASE;
   for (const b of G.buildings) {
-    if (b.key === 'depot' && b.done) cap += STORAGE_PER_DEPOT;
+    if (b.done && BUILDINGS[b.key].storage) cap += BUILDINGS[b.key].storage;
   }
   return cap;
+}
+
+// Warehouse / finished depots & kontors anchor roads, zones and ships.
+function isBase(b) {
+  return b.key === 'warehouse' || ((b.key === 'depot' || b.key === 'kontor') && b.done);
+}
+
+function islandAt(x, y) {
+  return G.islands && inBounds(x, y) ? G.islands.ids[idx(x, y)] : 0;
 }
 
 function popOf(tier) {
@@ -148,6 +164,14 @@ function canPlace(key, x, y, ignoreCost) {
   const def = BUILDINGS[key];
   if (!def) return { ok: false, why: 'Unknown building' };
   if (def.tier > G.unlocked) return { ok: false, why: 'Not yet unlocked' };
+  if (FERTILITY_CROPS.includes(key)) { // explain infertile islands first
+    const isl = islandAt(x, y);
+    const fert = isl ? G.fertility[isl] : null;
+    if (fert && !fert[key]) {
+      const what = { sheep: 'raise sheep', grain: 'grow grain', potato: 'grow potatoes' }[key];
+      return { ok: false, why: `This island cannot ${what} — found a colony on another island` };
+    }
+  }
   for (const [tx, ty] of footprintTiles(x, y, def.size)) {
     if (!inBounds(tx, ty)) return { ok: false, why: 'Out of bounds' };
     const t = G.tiles[idx(tx, ty)];
@@ -155,7 +179,16 @@ function canPlace(key, x, y, ignoreCost) {
     if (!groundOk) return { ok: false, why: 'Cannot build on this terrain' };
     if (G.grid[idx(tx, ty)]) return { ok: false, why: 'Space is occupied' };
     if (G.roads[idx(tx, ty)]) return { ok: false, why: 'A road is in the way' };
-    if (!G.zone[idx(tx, ty)]) return { ok: false, why: 'Outside the building area — markets and depots extend it' };
+    if (!def.ignoreZone && !G.zone[idx(tx, ty)]) return { ok: false, why: 'Outside the building area — markets and depots extend it' };
+  }
+  if (def.coastal) { // kontor: must stand at the waterline
+    let coast = false;
+    for (let ty = y - 2; ty <= y + def.size + 1 && !coast; ty++) {
+      for (let tx = x - 2; tx <= x + def.size + 1 && !coast; tx++) {
+        if (isWaterTile(tileAt(tx, ty))) coast = true;
+      }
+    }
+    if (!coast) return { ok: false, why: 'A Kontor must be founded at the waterline' };
   }
   const rq = checkReq(def, x, y);
   if (!rq.ok) return rq;
@@ -229,16 +262,17 @@ function demolishAt(x, y) {
   return true;
 }
 
-function removeBuilding(b) {
+function removeBuilding(b, refund = true) {
   const def = BUILDINGS[b.key];
   for (const [tx, ty] of footprintTiles(b.x, b.y, def.size)) G.grid[idx(tx, ty)] = null;
   G.buildings = G.buildings.filter(o => o !== b);
   if (G.selected === b.id) G.selected = null;
-  // 50% refund
-  const cap50 = storageCap();
-  G.stock.gold += Math.floor((def.cost.gold || 0) * 0.5);
-  G.stock.wood = Math.min(cap50, G.stock.wood + Math.floor((def.cost.wood || 0) * 0.5));
-  G.stock.tools = Math.min(cap50, G.stock.tools + Math.floor((def.cost.tools || 0) * 0.5));
+  if (refund) { // 50% back
+    const cap50 = storageCap();
+    G.stock.gold += Math.floor((def.cost.gold || 0) * 0.5);
+    G.stock.wood = Math.min(cap50, G.stock.wood + Math.floor((def.cost.wood || 0) * 0.5));
+    G.stock.tools = Math.min(cap50, G.stock.tools + Math.floor((def.cost.tools || 0) * 0.5));
+  }
   recomputeAll();
 }
 
@@ -271,7 +305,7 @@ function recomputeRoads() {
   const ok = new Uint8Array(MAPW * MAPH);
   const queue = [];
   for (const b of G.buildings) {
-    if (b.key !== 'warehouse' && !(b.key === 'depot' && b.done)) continue;
+    if (!isBase(b)) continue;
     const def = BUILDINGS[b.key];
     for (const [nx, ny] of footprintNeighbors(b.x, b.y, def.size)) {
       if (inBounds(nx, ny) && G.roads[idx(nx, ny)] && !ok[idx(nx, ny)]) {
@@ -300,7 +334,7 @@ function recomputeRoads() {
       if (!inBounds(nx, ny)) continue;
       if (G.roadOk[idx(nx, ny)]) { conn = true; break; }
       const nb = G.grid[idx(nx, ny)];
-      if (nb && (nb.key === 'warehouse' || (nb.key === 'depot' && nb.done))) { conn = true; break; }
+      if (nb && isBase(nb)) { conn = true; break; }
     }
     b.connected = conn;
   }
@@ -372,14 +406,19 @@ function simTick(dt) {
       }
     }
 
+    if (b.fire != null) { tickFire(b, dt); continue; }
+
     if (def.prod) tickProduction(b, def, dt, cap);
     else if (b.key === 'house') tickHouse(b, dt);
+    else if (b.key === 'watchtower') tickTower(b, dt);
     else b.status = b.connected ? 'ok' : 'noroad';
   }
 
   tickWalkers(dt);
   tickRates(dt);
   tickEvents(dt);
+  tickPirate(dt);
+  tickShots(dt);
   tickPopHist(dt);
   if (typeof AI !== 'undefined') AI.tick(dt);
   checkUnlocks();
@@ -413,6 +452,22 @@ const EVENTS = [
     G.stormT = 35;
     toast('⛈ Stormy seas! Your fishers shelter in the harbour for a while');
   } },
+  { w: 2, when: () => totalPop() >= 20, run() {
+    const c = G.buildings.filter(b => b.done && b.fire == null && !isBase(b));
+    if (c.length) ignite(c[Math.floor(Math.random() * c.length)]);
+  } },
+  { w: 2, when: () => totalPop() >= 60, run() {
+    const houses = G.buildings.filter(b => b.key === 'house' && b.done && b.sick == null && b.res > 2);
+    if (!houses.length) return;
+    const h0 = houses[Math.floor(Math.random() * houses.length)];
+    let infected = 0;
+    for (const h of houses) {
+      const d2 = (h.x - h0.x) ** 2 + (h.y - h0.y) ** 2;
+      if (h === h0 || (d2 <= 36 && infected < 3)) { sicken(h); infected++; }
+    }
+    toast('🤒 Plague breaks out! ' + infected + ' household(s) fall ill — chapels speed recovery', true);
+    sfx('error');
+  } },
 ];
 
 function tickEvents(dt) {
@@ -421,11 +476,211 @@ function tickEvents(dt) {
   G.eventT -= dt;
   if (G.eventT > 0) return;
   G.eventT = 100 + Math.random() * 80;
-  const total = EVENTS.reduce((s, e) => s + e.w, 0);
+  const eligible = EVENTS.filter(e => !e.when || e.when());
+  const total = eligible.reduce((s, e) => s + e.w, 0);
   let pick = Math.random() * total;
-  for (const e of EVENTS) {
+  for (const e of eligible) {
     pick -= e.w;
     if (pick <= 0) { e.run(); break; }
+  }
+}
+
+/* ---------------- fire ---------------- */
+
+const FIRE_MAX = 12; // seconds until a building burns down
+
+function ignite(b) {
+  if (b.fire != null || !b.done || isBase(b)) return;
+  b.fire = FIRE_MAX;
+  toast(`🔥 Fire at the ${BUILDINGS[b.key].name}!`, true);
+  sfx('error');
+}
+
+function fireCovered(b) {
+  for (const f of G.buildings) {
+    if (f.key !== 'firehouse' || !f.done || !f.connected) continue;
+    const fd = BUILDINGS.firehouse;
+    const cx = f.x + (fd.size - 1) / 2, cy = f.y + (fd.size - 1) / 2;
+    if ((b.x - cx) ** 2 + (b.y - cy) ** 2 <= fd.radius * fd.radius) return true;
+  }
+  return false;
+}
+
+function tickFire(b, dt) {
+  b.status = 'fire';
+  if (fireCovered(b)) {
+    b.fire += dt * 3; // the brigade beats the flames back
+    if (b.fire >= FIRE_MAX) {
+      b.fire = null;
+      toast(`🚒 The brigade saved the ${BUILDINGS[b.key].name}!`);
+    }
+  } else {
+    b.fire -= dt;
+    if (b.fire <= 0) {
+      toast(`🔥 The ${BUILDINGS[b.key].name} burned to the ground!`, true);
+      sfx('demolish');
+      removeBuilding(b, false);
+    }
+  }
+}
+
+function sicken(h) {
+  h.sick = h.svc.faith ? 18 : 30;
+  h.sickT = 0;
+}
+
+/* ---------------- pirates & watchtowers ---------------- */
+
+/* BFS over water from a start tile until goalTest hits; returns [[x,y],...]. */
+function waterPath(startIdx, goalTest) {
+  const parent = new Map();
+  const queue = [startIdx];
+  parent.set(startIdx, -1);
+  let found = -1;
+  for (let qi = 0; qi < queue.length && found < 0; qi++) {
+    const cur = queue[qi];
+    if (goalTest(cur)) { found = cur; break; }
+    const x = cur % MAPW, y = (cur - x) / MAPW;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (!inBounds(nx, ny)) continue;
+      const ni = idx(nx, ny);
+      if (!parent.has(ni) && isWaterTile(G.tiles[ni])) { parent.set(ni, cur); queue.push(ni); }
+    }
+  }
+  if (found < 0) return null;
+  const path = [];
+  for (let cur = found; cur !== -1; cur = parent.get(cur)) {
+    path.push([cur % MAPW, Math.floor(cur / MAPW)]);
+  }
+  return path;
+}
+
+function spawnPirate() {
+  // anchor spot: shore water near the player's buildings
+  const cands = [];
+  for (const b of G.buildings) {
+    if (!b.done) continue;
+    for (let ty = b.y - 5; ty <= b.y + 5; ty++) {
+      for (let tx = b.x - 5; tx <= b.x + 5; tx++) {
+        if (!inBounds(tx, ty)) continue;
+        const i = idx(tx, ty);
+        if (isWaterTile(G.tiles[i]) && G.shore[i]) cands.push(i);
+      }
+    }
+  }
+  if (!cands.length) return;
+  const target = cands[Math.floor(Math.random() * cands.length)];
+  const path = waterPath(target, i => {
+    const x = i % MAPW, y = (i - x) / MAPW;
+    return x === 0 || y === 0 || x === MAPW - 1 || y === MAPH - 1;
+  });
+  if (!path || path.length < 3) return;
+  // waterPath went target→edge; the ship sails edge→target
+  const hp = 30 + Math.min(40, Math.floor(G.time / 60) * 2);
+  G.pirate = {
+    path, seg: 0, prog: 0,
+    x: path[0][0], y: path[0][1],
+    hp, maxHp: hp, state: 'approach', timer: 0,
+  };
+  G.pirateSeen = true;
+  toast('🏴‍☠️ A pirate ship approaches! Watchtowers, to arms!', true);
+  sfx('error');
+}
+
+function tickPirate(dt) {
+  if (!G.pirate) {
+    if (totalPop() < 50) return;
+    G.pirateT -= dt;
+    if (G.pirateT <= 0) {
+      G.pirateT = 280 + Math.random() * 180;
+      spawnPirate();
+    }
+    return;
+  }
+  const p = G.pirate;
+  if (p.state === 'sinking') {
+    p.timer -= dt;
+    if (p.timer <= 0) G.pirate = null;
+    return;
+  }
+  if (p.state === 'raid') {
+    p.timer -= dt;
+    if (p.timer <= 0) {
+      doRaid(p);
+      p.state = 'flee';
+      p.path = p.path.slice().reverse();
+      p.seg = 0; p.prog = 0;
+    }
+    return;
+  }
+  p.prog += dt * 2.2;
+  while (p.prog >= 1 && p.seg < p.path.length - 1) { p.prog -= 1; p.seg++; }
+  if (p.seg >= p.path.length - 1) {
+    if (p.state === 'approach') {
+      p.state = 'raid';
+      p.timer = 12;
+      toast('🏴‍☠️ Pirates anchor off your coast!');
+    } else {
+      G.pirate = null; // got away
+    }
+    return;
+  }
+  const a = p.path[p.seg], n = p.path[Math.min(p.seg + 1, p.path.length - 1)];
+  p.x = a[0] + (n[0] - a[0]) * p.prog;
+  p.y = a[1] + (n[1] - a[1]) * p.prog;
+}
+
+function doRaid(p) {
+  const stolen = [];
+  const goods = GOODS.filter(g => G.stock[g] > 10);
+  for (let k = 0; k < 3 && goods.length; k++) {
+    const g = goods.splice(Math.floor(Math.random() * goods.length), 1)[0];
+    const amt = Math.max(3, Math.floor(G.stock[g] * (0.12 + Math.random() * 0.1)));
+    G.stock[g] -= amt;
+    stolen.push(`−${amt} ${RES_META[g].icon}`);
+  }
+  toast('🏴‍☠️ Pirates raided your stores! ' + (stolen.join('  ') || 'They found little.'), true);
+  if (Math.random() < 0.5) { // and sometimes they torch something
+    const near = G.buildings.filter(b => b.done && b.fire == null && !isBase(b) &&
+      (b.x - p.x) ** 2 + (b.y - p.y) ** 2 < 100);
+    if (near.length) ignite(near[Math.floor(Math.random() * near.length)]);
+  }
+}
+
+function hitPirate(dmg) {
+  const p = G.pirate;
+  if (!p || p.state === 'sinking') return;
+  p.hp -= dmg;
+  if (p.hp <= 0) {
+    p.state = 'sinking';
+    p.timer = 2.5;
+    G.pirateSunk++;
+    G.stock.gold += 150;
+    toast('💥 Pirate ship sunk! Salvage: +150 🪙', true);
+    sfx('unlock');
+  }
+}
+
+function tickTower(b, dt) {
+  b.status = 'ok';
+  if (!b.done) return;
+  b.t += dt;
+  const p = G.pirate;
+  if (!p || p.state === 'sinking') return;
+  const range = BUILDINGS.watchtower.range;
+  if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 > range * range) return;
+  if (b.t < 2) return;
+  b.t = 0;
+  G.shots.push({ x0: b.x, y0: b.y, x1: p.x, y1: p.y, t: 0 });
+  hitPirate(12);
+  sfx('cannon');
+}
+
+function tickShots(dt) {
+  for (let i = G.shots.length - 1; i >= 0; i--) {
+    G.shots[i].t += dt;
+    if (G.shots[i].t > 0.8) G.shots.splice(i, 1);
   }
 }
 
@@ -493,6 +748,19 @@ function tickProduction(b, def, dt, cap) {
 
 function tickHouse(h, dt) {
   const tier = TIERS[h.tier];
+
+  // plague: no taxes, no growth, residents dwindle until it passes
+  if (h.sick != null) {
+    h.sick -= dt;
+    h.sickT = (h.sickT || 0) + dt;
+    if (h.sickT >= 6) {
+      h.sickT = 0;
+      if (h.res > 2) h.res--;
+    }
+    if (h.sick <= 0) h.sick = null;
+    h.status = 'sick';
+    return;
+  }
 
   // taxes
   G.stock.gold += h.res * tier.tax * dt;
@@ -784,10 +1052,18 @@ function newGame(seed) {
   G.popHistT = 0;
   G.autopilot = false;
 
+  G.pirate = null;
+  G.pirateT = 360 + Math.random() * 120;
+  G.pirateSeen = false;
+  G.pirateSunk = 0;
+  G.shots = [];
+
   const spot = findWarehouseSpot(G.tiles);
   // warehouse placement bypasses zone (zone radiates FROM it)
   G.zone.fill(1);
   placeBuilding('warehouse', spot.x, spot.y, true);
+  G.islands = floodFillIslands(G.tiles);
+  G.fertility = assignFertility(G.islands, islandAt(spot.x, spot.y), G.seed);
   recomputeAll();
   return spot;
 }
@@ -804,6 +1080,9 @@ function saveGame() {
       quest: G.quest,
       popHist: G.popHist,
       autopilot: G.autopilot,
+      fertility: G.fertility,
+      pirateSeen: G.pirateSeen,
+      pirateSunk: G.pirateSunk,
       stock: G.stock,
       tiles: Array.from(G.tiles),
       roads: Array.from(G.roads),
@@ -825,11 +1104,13 @@ function loadGame() {
     data = JSON.parse(localStorage.getItem(SAVE_KEY) || localStorage.getItem(SAVE_KEY_LEGACY));
   } catch (e) { return false; }
   if (!data || data.v !== 1) return false;
+  if (!data.tiles || data.tiles.length !== MAPW * MAPH) return false; // older map format
 
   G.seed = data.seed;
   const m = generateMap(G.seed); // regenerate for shore flags
   G.tiles = Uint8Array.from(data.tiles);
   G.shore = m.shore;
+  G.islands = floodFillIslands(G.tiles);
   G.grid = new Array(MAPW * MAPH).fill(null);
   G.roads = Uint8Array.from(data.roads);
   G.zone = new Uint8Array(MAPW * MAPH);
@@ -855,6 +1136,19 @@ function loadGame() {
   G.popHist = Array.isArray(data.popHist) ? data.popHist : [];
   G.popHistT = 0;
   G.autopilot = !!data.autopilot;
+  G.pirate = null;
+  G.pirateT = 300 + Math.random() * 120;
+  G.pirateSeen = !!data.pirateSeen;
+  G.pirateSunk = data.pirateSunk || 0;
+  G.shots = [];
+  if (data.fertility) {
+    G.fertility = data.fertility;
+  } else { // legacy save: everything grows everywhere
+    G.fertility = {};
+    for (let id = 1; id <= G.islands.count; id++) {
+      G.fertility[id] = { sheep: true, grain: true, potato: true };
+    }
+  }
 
   for (const s of data.buildings) {
     const b = {

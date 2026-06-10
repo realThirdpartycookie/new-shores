@@ -33,6 +33,7 @@ const UI = (() => {
     coin:     () => { beep(880, 0.07, 'sine', 0.1); beep(1320, 0.09, 'sine', 0.08, 0.05); },
     upgrade:  () => { beep(523, 0.1); beep(659, 0.1, 'triangle', 0.12, 0.09); beep(784, 0.16, 'triangle', 0.12, 0.18); },
     unlock:   () => { beep(523, 0.12); beep(659, 0.12, 'triangle', 0.12, 0.1); beep(784, 0.12, 'triangle', 0.12, 0.2); beep(1047, 0.25, 'triangle', 0.14, 0.3); },
+    cannon:   () => { beep(75, 0.3, 'sawtooth', 0.14); beep(48, 0.4, 'square', 0.1, 0.04); },
   };
 
   function sfx(name) { if (SFX[name]) SFX[name](); }
@@ -301,6 +302,8 @@ const UI = (() => {
     noroad: '<span class="bad">✗ No road connection to the Warehouse</span>',
     full: '<span class="bad">⏸ Storage is full</span>',
     storm: '<span class="bad">⛈ Sheltering from the storm</span>',
+    fire: '<span class="bad">🔥 ON FIRE — pray the brigade is near!</span>',
+    sick: '<span class="bad">🤒 Plague — residents are recovering</span>',
     needs: '<span class="bad">✗ Needs are not met</span>',
   };
 
@@ -316,6 +319,7 @@ const UI = (() => {
     let html = '';
     if (b.key === 'house') {
       const tier = TIERS[b.tier];
+      if (b.sick != null) html += STATUS_TEXT.sick + '<hr>';
       html += `<div class="row"><span>Residents</span><b>${b.res} / ${tier.resMax}</b></div>`;
       html += `<div class="row"><span>Taxes</span><b>${(b.res * tier.tax * 60).toFixed(1)} 🪙/min</b></div><hr>`;
       html += '<b>Needs</b>';
@@ -366,7 +370,17 @@ const UI = (() => {
       if (def.service) html += `<hr>Serves houses within ${def.radius} tiles.`;
       if (def.zone) html += `<hr>Extends the building area by ${def.zone} tiles.`;
       if (def.storage) html += `<br>+${def.storage} storage capacity.`;
-      if (b.key === 'warehouse') html += `<hr>Storage capacity: <b>${storageCap()}</b> per good.`;
+      if (b.key === 'warehouse' || b.key === 'kontor') {
+        html += `<hr>Storage capacity: <b>${storageCap()}</b> per good.`;
+        const fert = G.fertility[islandAt(b.x, b.y)];
+        if (fert) {
+          const items = FERTILITY_CROPS.map(c => {
+            const names = { sheep: '🐑 Sheep', grain: '🌾 Grain', potato: '🥔 Potatoes' };
+            return `<span class="${fert[c] ? 'ok' : 'bad'}">${names[c]} ${fert[c] ? '✓' : '✗'}</span>`;
+          });
+          html += `<br><b>This island:</b><br>` + items.join(' &nbsp; ');
+        }
+      }
     }
     $('panel-body').innerHTML = html;
   }

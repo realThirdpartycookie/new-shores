@@ -10,8 +10,11 @@ const TILE = { DEEP: 0, WATER: 1, SAND: 2, GRASS: 3, TREE: 4, ROCK: 5 };
 // Isometric tile metrics (pixels at zoom 1)
 const TW = 64, TH = 32, TW2 = 32, TH2 = 16;
 
-// Map size (tiles)
-const MAPW = 72, MAPH = 72;
+// Map size (tiles) — big enough for an archipelago
+const MAPW = 96, MAPH = 96;
+
+// Crops that depend on island fertility (building key = crop key)
+const FERTILITY_CROPS = ['sheep', 'grain', 'potato'];
 
 // Storage
 const STORAGE_BASE = 300;
@@ -178,6 +181,22 @@ const BUILDINGS = {
     needsRoad: false, buildTime: 8, zone: 12, storage: STORAGE_PER_DEPOT,
     desc: 'Extends the building area, raises storage by 150 and accepts road connections.',
   },
+  kontor: {
+    name: 'Kontor', icon: '⛵', size: 2, tier: 2, cost: { gold: 1500, wood: 30, tools: 10, food: 20 },
+    needsRoad: false, buildTime: 15, zone: 14, storage: 150, ignoreZone: true,
+    allowSand: true, coastal: true,
+    desc: 'Expedition: found a colony on a new island. Must stand at the waterline. Extends the building area there, adds storage, and your cargo ships keep it supplied.',
+  },
+  watchtower: {
+    name: 'Watchtower', icon: '🗼', size: 1, tier: 2, cost: { gold: 250, wood: 10, tools: 5, iron: 5 },
+    needsRoad: false, buildTime: 8, range: 9, allowSand: true,
+    desc: 'Cannons fire at pirate ships within range. Place near your coast.',
+  },
+  firehouse: {
+    name: 'Fire Station', icon: '🚒', size: 2, tier: 2, cost: { gold: 200, wood: 10, tools: 3 },
+    needsRoad: true, buildTime: 8, radius: 11,
+    desc: 'The brigade extinguishes fires in nearby buildings before they burn down.',
+  },
   tavern: {
     name: 'Tavern', icon: '🍺', size: 2, tier: 3, cost: { gold: 250, wood: 15, tools: 3 },
     needsRoad: true, service: 'fun', radius: 12, buildTime: 8,
@@ -203,6 +222,7 @@ const TOOLBAR_ITEMS = [
   'road', 'house', 'market', 'chapel', null,
   'woodcutter', 'fisher', 'hunter', null,
   'sheep', 'weaver', 'grain', 'bakery', 'mine', 'toolmaker', 'depot', null,
+  'watchtower', 'firehouse', 'kontor', null,
   'tavern', 'potato', 'distillery',
 ];
 
@@ -236,6 +256,8 @@ const QUESTS = [
   { text: 'Reach 30 Settlers to unlock Citizens', reward: { gold: 300 },
     prog: () => [popOf(1), 30],
     check: () => G.unlocked >= 3 },
+  { text: 'Found a colony on another island (build a Kontor ⛵)', reward: { gold: 500 },
+    check: () => G.buildings.some(b => b.key === 'kontor' && b.done) },
   { text: 'Get a Distillery working (Potato Farm → Distillery)', reward: { gold: 300 },
     check: () => G.buildings.some(b => b.key === 'distillery' && b.status === 'ok') },
   { text: 'Upgrade a house to Citizens', reward: { gold: 500 },

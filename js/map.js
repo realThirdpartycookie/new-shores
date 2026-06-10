@@ -34,23 +34,43 @@ function tileHash(x, y) {
   return (h % 1000) / 1000;
 }
 
-/* Returns { tiles: Uint8Array, shore: Uint8Array } */
+/* Returns { tiles: Uint8Array, shore: Uint8Array } — an archipelago:
+ * one main island plus 2-3 smaller ones. */
 function generateMap(seed) {
   const rng = mulberry32(seed);
   const n1 = noiseGrid(6, rng), n2 = noiseGrid(12, rng), n3 = noiseGrid(24, rng);
   const mNoise = noiseGrid(9, rng);  // mountains
   const tNoise = noiseGrid(14, rng); // trees
 
+  // island layout (fractions of map size)
+  const isles = [{ cx: 0.5 + (rng() - 0.5) * 0.05, cy: 0.5 + (rng() - 0.5) * 0.05, r: 0.21 }];
+  const sat = 2 + Math.floor(rng() * 2); // 2-3 satellites
+  const a0 = rng() * Math.PI * 2;
+  for (let i = 0; i < sat; i++) {
+    const a = a0 + (i + 0.5) * Math.PI * 2 / sat + (rng() - 0.5) * 0.5;
+    isles.push({
+      cx: 0.5 + Math.cos(a) * 0.365,
+      cy: 0.5 + Math.sin(a) * 0.365,
+      r: 0.10 + rng() * 0.025,
+    });
+  }
+
   const tiles = new Uint8Array(MAPW * MAPH);
-  const cx = MAPW / 2, cy = MAPH / 2;
 
   for (let y = 0; y < MAPH; y++) {
     for (let x = 0; x < MAPW; x++) {
       const nx = x / MAPW, ny = y / MAPH;
       const v = n1(nx, ny) * 0.55 + n2(nx, ny) * 0.3 + n3(nx, ny) * 0.15;
-      const dx = (x - cx) / (MAPW * 0.48), dy = (y - cy) / (MAPH * 0.48);
-      const d = Math.sqrt(dx * dx + dy * dy); // 0 centre → ~1 edge
-      const e = v * 0.55 + (1 - d * d) * 0.62 - 0.18;
+      // strongest island field wins
+      let field = 0;
+      for (const is of isles) {
+        const dx = (nx - is.cx) / is.r, dy = (ny - is.cy) / is.r;
+        field = Math.max(field, 1 - (dx * dx + dy * dy));
+      }
+      // keep the map border watery
+      const edge = Math.min(x, y, MAPW - 1 - x, MAPH - 1 - y) / 7;
+      if (edge < 1) field *= Math.max(0, edge);
+      const e = v * 0.5 + field * 0.62 - 0.14;
 
       let t;
       if (e < 0.30) t = TILE.DEEP;
@@ -59,7 +79,7 @@ function generateMap(seed) {
       else t = TILE.GRASS;
 
       if (t === TILE.GRASS) {
-        if (mNoise(nx, ny) > 0.78 && d < 0.55 && e > 0.62) t = TILE.ROCK;
+        if (mNoise(nx, ny) > 0.78 && e > 0.62) t = TILE.ROCK;
         else if (tNoise(nx, ny) > 0.58) t = TILE.TREE;
       }
       tiles[y * MAPW + x] = t;
@@ -103,12 +123,72 @@ function generateMap(seed) {
   return { tiles, shore };
 }
 
-/* Find a 2x2 grass spot near the coast for the starting Warehouse. */
+/* Label connected landmasses. Returns { ids: Int16Array (0 = water), count, sizes }. */
+function floodFillIslands(tiles) {
+  const ids = new Int16Array(MAPW * MAPH);
+  const isLand = t => t === TILE.SAND || t === TILE.GRASS || t === TILE.TREE || t === TILE.ROCK;
+  let count = 0;
+  const sizes = [0]; // index by island id
+  for (let i = 0; i < tiles.length; i++) {
+    if (!isLand(tiles[i]) || ids[i]) continue;
+    count++;
+    sizes.push(0);
+    const queue = [i];
+    ids[i] = count;
+    for (let qi = 0; qi < queue.length; qi++) {
+      const cur = queue[qi];
+      sizes[count]++;
+      const x = cur % MAPW, y = (cur - x) / MAPW;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx2 = x + dx, ny2 = y + dy;
+        if (nx2 < 0 || ny2 < 0 || nx2 >= MAPW || ny2 >= MAPH) continue;
+        const ni = ny2 * MAPW + nx2;
+        if (isLand(tiles[ni]) && !ids[ni]) { ids[ni] = count; queue.push(ni); }
+      }
+    }
+  }
+  return { ids, count, sizes };
+}
+
+/* Per-island crop fertilities. The home island always supports the early
+ * chains; every crop exists somewhere in the archipelago. */
+function assignFertility(islands, homeId, seed) {
+  const rng = mulberry32(seed ^ 0x5eed);
+  const fert = {};
+  for (let id = 1; id <= islands.count; id++) {
+    if (islands.sizes[id] < 30) { // skerries support nothing
+      fert[id] = { sheep: false, grain: false, potato: false };
+      continue;
+    }
+    if (id === homeId) {
+      fert[id] = { sheep: true, grain: true, potato: rng() < 0.35 };
+    } else {
+      fert[id] = { sheep: rng() < 0.55, grain: rng() < 0.55, potato: rng() < 0.7 };
+    }
+  }
+  // guarantee every crop somewhere
+  for (const crop of FERTILITY_CROPS) {
+    if (Object.values(fert).some(f => f[crop])) continue;
+    const big = [];
+    for (let id = 1; id <= islands.count; id++) if (islands.sizes[id] >= 30) big.push(id);
+    if (big.length) fert[big[Math.floor(rng() * big.length)]][crop] = true;
+  }
+  return fert;
+}
+
+/* Find a 2x2 grass spot near the coast for the starting Warehouse,
+ * preferring the largest island. */
 function findWarehouseSpot(tiles) {
+  const islands = floodFillIslands(tiles);
+  let mainId = 1;
+  for (let id = 2; id <= islands.count; id++) {
+    if (islands.sizes[id] > islands.sizes[mainId]) mainId = id;
+  }
   const cx = MAPW / 2, cy = MAPH / 2;
   let best = null, bestScore = Infinity;
   for (let y = 2; y < MAPH - 3; y++) {
     for (let x = 2; x < MAPW - 3; x++) {
+      if (islands.ids[y * MAPW + x] !== mainId) continue;
       let ok = true;
       for (let dy = 0; dy < 2 && ok; dy++) {
         for (let dx = 0; dx < 2 && ok; dx++) {

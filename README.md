@@ -59,6 +59,26 @@ selection). Retrain any time with `node dev/train.js`. The headless test suite
 includes a full autonomy check: the net must grow a fresh island to 25+
 population on its own (it reaches ~260 with ~60 buildings).
 
+## ⛵ Archipelago & colonies
+
+Each map is an archipelago: a home island plus 2–3 smaller ones, each with its
+own **fertilities** — maybe yours can't grow potatoes, but the southern island
+can (check the Warehouse/Kontor panel). Build a **Kontor** at a foreign
+waterline (an expedition costing gold, wood, tools and provisions) to found a
+colony: it opens a building zone there, anchors roads, adds storage, and cargo
+ships shuttle between your harbours automatically.
+
+## 🏴‍☠️ Warfare & disasters
+
+- **Pirates** raid prosperous towns: a warning sounds, the black sail crosses
+  the sea, and if it reaches your coast it steals from your stores and may
+  torch a building. **Watchtowers** fire cannonballs at ships in range — sink
+  the raider for salvage gold.
+- **Fires** break out randomly (or are set by pirates). Without a **Fire
+  Station** nearby, the building burns to the ground.
+- **Plague** strikes large towns; sick houses pay no taxes and lose residents
+  until it passes — chapel coverage speeds recovery.
+
 ## Living island
 
 - **Carriers** haul finished goods along your roads to the Warehouse; **workers**

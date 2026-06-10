@@ -93,7 +93,7 @@ const Render = (() => {
       if (!inBounds(nx, ny)) continue;
       const nb = G.grid[idx(nx, ny)];
       const link = G.roads[idx(nx, ny)] ||
-        (nb && (nb.key === 'warehouse' || nb.key === 'depot' || nb.key === 'market'));
+        (nb && (nb.key === 'warehouse' || nb.key === 'depot' || nb.key === 'market' || nb.key === 'kontor'));
       if (link) arms.push([ox, oy]);
     }
     ctx.lineCap = 'round';
@@ -204,12 +204,31 @@ const Render = (() => {
       if (w.fx < r.x0 - 1 || w.fx > r.x1 + 1 || w.fy < r.y0 - 1 || w.fy > r.y1 + 1) continue;
       items.push({ d: w.fx + w.fy + 0.01, kind: 'person', w });
     }
-    // trading ship circling the island
+    // trading ship circling the archipelago
     const sa = time * 0.045;
-    const RX = MAPW * 0.44, RY = MAPH * 0.40;
+    const RX = MAPW * 0.47, RY = MAPH * 0.44;
     const shipX = MAPW / 2 + Math.cos(sa) * RX;
     const shipY = MAPH / 2 + Math.sin(sa) * RY;
     items.push({ d: shipX + shipY, kind: 'ship', fx: shipX, fy: shipY, a: sa });
+
+    // cargo ships shuttling between the warehouse and colonies
+    for (const route of cargoRoutes()) {
+      const total = route.path.length - 1;
+      let leg = (time * 1.5 + route.phase) % (2 * total);
+      const forward = leg <= total;
+      if (!forward) leg = 2 * total - leg;
+      const seg = Math.min(total - 1, Math.floor(leg));
+      const prog = leg - seg;
+      const a = route.path[seg], n = route.path[seg + 1];
+      const fx = a[0] + (n[0] - a[0]) * prog, fy = a[1] + (n[1] - a[1]) * prog;
+      const dirX = ((n[0] - a[0]) - (n[1] - a[1])) * (forward ? 1 : -1);
+      items.push({ d: fx + fy, kind: 'cargo', fx, fy, flip: dirX < 0 });
+    }
+
+    // pirates!
+    if (G.pirate) {
+      items.push({ d: G.pirate.x + G.pirate.y, kind: 'pirate', p: G.pirate });
+    }
 
     items.sort((p, q) => p.d - q.d);
 
@@ -217,6 +236,21 @@ const Render = (() => {
     for (const it of items) {
       if (it.kind === 'ship') {
         drawShip(it, time, RX, RY);
+        continue;
+      }
+      if (it.kind === 'cargo') {
+        const sp = Sprites.get('ship');
+        const sx = (it.fx - it.fy) * TW2, sy = (it.fx + it.fy) * TH2;
+        const bob = Math.sin(time * 1.6 + it.fx) * 1.2;
+        ctx.save();
+        ctx.translate(sx, sy - sp.oy * 0.8 + bob);
+        if (it.flip) ctx.scale(-1, 1);
+        ctx.drawImage(sp.c, -sp.w * 0.4, 0, sp.w * 0.8, sp.h * 0.8);
+        ctx.restore();
+        continue;
+      }
+      if (it.kind === 'pirate') {
+        drawPirate(it.p, time);
         continue;
       }
       if (it.kind === 'person') {
@@ -238,8 +272,9 @@ const Render = (() => {
 
       if (it.b) {
         const b = it.b;
-        if (b.done && sp.chimney) drawSmoke(topX, baseY, sp, b, time);
-        drawWorkers(b, it, topX, topY, time);
+        if (b.done && sp.chimney && b.fire == null) drawSmoke(topX, baseY, sp, b, time);
+        if (b.fire != null) drawFlames(topX, topY, it.s, b, time);
+        else drawWorkers(b, it, topX, topY, time);
         if (!b.done) { // construction progress bar
           const p = Math.min(1, b.progress / BUILDINGS[b.key].buildTime);
           const bw = 30;
@@ -254,12 +289,148 @@ const Render = (() => {
       }
     }
 
+    drawShots(time);
     drawAmbience(time);
 
     /* ---- ghost ---- */
     if (ghost.active) drawGhost();
 
     drawMinimap();
+  }
+
+  /* ---------------- pirates, cannons, fire ---------------- */
+
+  function drawPirate(p, time) {
+    const sp = Sprites.get('pirateship');
+    const sx = (p.x - p.y) * TW2, sy = (p.x + p.y) * TH2;
+    let sink = 0, alpha = 1;
+    if (p.state === 'sinking') {
+      const k = 1 - p.timer / 2.5;
+      sink = k * 26;
+      alpha = 1 - k;
+    }
+    const bob = Math.sin(time * 1.8 + 2) * 1.5;
+    // direction of travel
+    let flip = false;
+    if (p.path && p.seg < p.path.length - 1) {
+      const a = p.path[p.seg], n = p.path[p.seg + 1];
+      flip = ((n[0] - a[0]) - (n[1] - a[1])) < 0;
+    }
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(sx, sy - sp.oy + bob + sink);
+    if (flip) ctx.scale(-1, 1);
+    ctx.drawImage(sp.c, -sp.w / 2, 0, sp.w, sp.h);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    // hp bar while under fire
+    if (p.hp < p.maxHp && p.state !== 'sinking') {
+      const bw = 26;
+      ctx.fillStyle = 'rgba(20,14,8,0.7)';
+      ctx.fillRect(sx - bw / 2, sy - sp.oy - 8 + bob, bw, 4);
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(sx - bw / 2 + 1, sy - sp.oy - 7 + bob, (bw - 2) * Math.max(0, p.hp / p.maxHp), 2);
+    }
+    if (p.state === 'sinking') { // bubbles & flotsam
+      for (let i = 0; i < 3; i++) {
+        const ph = (time * 0.8 + i * 0.4) % 1;
+        ctx.fillStyle = `rgba(235,248,255,${(0.5 - ph * 0.4).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(sx - 8 + i * 8, sy + TH2 - ph * 6, 1.6 + ph * 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawShots(time) {
+    for (const s of G.shots) {
+      const x0 = (s.x0 - s.y0) * TW2, y0 = (s.x0 + s.y0) * TH2 - 42; // tower muzzle
+      const x1 = (s.x1 - s.y1) * TW2, y1 = (s.x1 + s.y1) * TH2 - 8;
+      const k = Math.min(1, s.t / 0.45);
+      if (k < 1) { // ball in flight with an arc
+        const bx = x0 + (x1 - x0) * k;
+        const by = y0 + (y1 - y0) * k - Math.sin(k * Math.PI) * 22;
+        ctx.fillStyle = '#26262a';
+        ctx.beginPath(); ctx.arc(bx, by, 2.4, 0, Math.PI * 2); ctx.fill();
+        // muzzle flash
+        if (s.t < 0.12) {
+          ctx.fillStyle = `rgba(255,200,90,${(0.8 - s.t * 6).toFixed(3)})`;
+          ctx.beginPath(); ctx.arc(x0, y0, 5 - s.t * 20, 0, Math.PI * 2); ctx.fill();
+        }
+      } else { // splash
+        const sk = (s.t - 0.45) / 0.35;
+        ctx.strokeStyle = `rgba(235,248,255,${(0.7 - sk * 0.7).toFixed(3)})`;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.ellipse(x1, y1 + 8, 4 + sk * 9, 2 + sk * 4, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  function drawFlames(topX, topY, s, b, time) {
+    const cy = topY + s * TH2;
+    for (let i = 0; i < 4; i++) {
+      const fx = topX + Math.sin(i * 2.4 + b.id) * s * 12;
+      const fy = cy + Math.cos(i * 1.7) * s * 5;
+      const flick = 0.7 + 0.3 * Math.sin(time * 11 + i * 2.3);
+      const h = (10 + i * 3) * flick;
+      const grad = ctx.createLinearGradient(fx, fy, fx, fy - h);
+      grad.addColorStop(0, 'rgba(255,120,20,0.85)');
+      grad.addColorStop(0.6, 'rgba(255,200,60,0.8)');
+      grad.addColorStop(1, 'rgba(255,240,160,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(fx - 4 * flick, fy);
+      ctx.quadraticCurveTo(fx - 1, fy - h * 0.5, fx, fy - h);
+      ctx.quadraticCurveTo(fx + 1, fy - h * 0.5, fx + 4 * flick, fy);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // black smoke
+    for (let i = 0; i < 3; i++) {
+      const ph = (time * 0.5 + i * 0.33 + b.id * 0.1) % 1;
+      ctx.fillStyle = `rgba(40,36,32,${((1 - ph) * 0.45).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(topX + Math.sin(ph * 6 + b.id) * 4, cy - 20 - ph * 24, 3 + ph * 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /* cargo routes between warehouse and kontors (cached water paths) */
+  let cargoCache = { key: '', routes: [] };
+
+  function nearestWaterTo(b) {
+    const def = BUILDINGS[b.key];
+    const cx = Math.round(b.x + (def.size - 1) / 2), cy = Math.round(b.y + (def.size - 1) / 2);
+    for (let r = 1; r <= 7; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = cx + dx, y = cy + dy;
+          if (inBounds(x, y) && isWaterTile(G.tiles[idx(x, y)])) return idx(x, y);
+        }
+      }
+    }
+    return null;
+  }
+
+  function cargoRoutes() {
+    const kontors = G.buildings.filter(b => b.key === 'kontor' && b.done);
+    const key = kontors.map(k => k.id).join(',');
+    if (cargoCache.key === key) return cargoCache.routes;
+    cargoCache = { key, routes: [] };
+    const wh = G.buildings.find(b => b.key === 'warehouse');
+    if (!wh) return cargoCache.routes;
+    const whDock = nearestWaterTo(wh);
+    if (whDock == null) return cargoCache.routes;
+    for (const k of kontors) {
+      const kd = nearestWaterTo(k);
+      if (kd == null) continue;
+      const path = waterPath(whDock, i => i === kd);
+      if (path && path.length > 3) cargoCache.routes.push({ path, phase: k.id * 13 });
+    }
+    return cargoCache.routes;
   }
 
   /* Drifting cloud shadows + circling gulls. */
@@ -392,6 +563,9 @@ const Render = (() => {
     distillery: [{ du: -0.38, dv: 0.48, anim: 'idle' }],
     market:     [{ du: -0.55, dv: 0.15, anim: 'idle' }, { du: 0.35, dv: 0.62, anim: 'idle', ph: 1.6 }],
     warehouse:  [{ du: 0.78, dv: 0.32, anim: 'idle' }],
+    kontor:     [{ du: -0.6, dv: 0.55, anim: 'idle' }],
+    watchtower: [{ du: 0.3, dv: 0.35, anim: 'idle', tint: '#5a5a64' }],
+    firehouse:  [{ du: 0.35, dv: 0.72, anim: 'idle', tint: '#b8463a' }],
     chapel:     [{ du: 0.62, dv: 0.58, anim: 'idle', tint: '#4a3a2c' }],
     tavern:     [{ du: 0.08, dv: 0.8, anim: 'idle' }],
     depot:      [{ du: 0.62, dv: 0.42, anim: 'idle' }],
@@ -401,6 +575,7 @@ const Render = (() => {
     weaver: '#8a4a78', mine: '#5a5a64', toolmaker: '#6a4a3a', potato: '#b8862a',
     distillery: '#6d3a2a', market: '#a84a3c', warehouse: '#7a5c3a', chapel: '#4a3a2c',
     tavern: '#3a6ea8', depot: '#7a5c3a', grain: '#b8862a', bakery: '#e2d3b4',
+    kontor: '#3a6ea8', watchtower: '#5a5a64', firehouse: '#b8463a',
   };
 
   function drawWorkers(b, it, topX, topY, time) {
@@ -436,9 +611,16 @@ const Render = (() => {
     noroad: '#c0392b', nocond: '#d87b1e', noinput: '#c8a300',
     full: '#2e6da4', needs: '#c0392b', storm: '#5b7a96',
   };
+  const BADGE_GLYPHS = { fire: '🔥', sick: '🤒' };
 
   function drawBadge(x, y, status, time) {
     const bobY = y + Math.sin(time * 4) * 1.5;
+    if (BADGE_GLYPHS[status]) {
+      ctx.font = '13px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(BADGE_GLYPHS[status], x, bobY);
+      return;
+    }
     ctx.fillStyle = BADGE_COLORS[status] || '#c0392b';
     ctx.beginPath(); ctx.arc(x, bobY, 7, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2; ctx.stroke();
@@ -464,14 +646,15 @@ const Render = (() => {
     ctx.lineDashOffset = -time * 16;
     ctx.stroke();
     ctx.setLineDash([]);
-    // service / build-area radius of the selected building
-    const rr = def.radius || def.zone;
+    // service / build-area / attack radius of the selected building
+    const rr = def.radius || def.zone || def.range;
     if (rr && b.done) {
       const ccx = b.x + (s - 1) / 2, ccy = b.y + (s - 1) / 2;
       const csx = (ccx - ccy) * TW2, csy = (ccx + ccy) * TH2 + TH2;
       ctx.beginPath();
       ctx.ellipse(csx, csy, rr * TW2 * 1.02, rr * TH2 * 1.02, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = def.radius ? 'rgba(255,215,94,0.7)' : 'rgba(120,220,255,0.6)';
+      ctx.strokeStyle = def.range ? 'rgba(255,90,60,0.7)'
+        : def.radius ? 'rgba(255,215,94,0.7)' : 'rgba(120,220,255,0.6)';
       ctx.lineWidth = 2;
       ctx.setLineDash([8, 6]);
       ctx.stroke();
@@ -519,13 +702,14 @@ const Render = (() => {
       ctx.globalAlpha = 1;
       // service / zone radius preview
       const bdef = BUILDINGS[key];
-      const rr = bdef.radius || bdef.zone;
+      const rr = bdef.radius || bdef.zone || bdef.range;
       if (rr) {
         const ccx = x + (s - 1) / 2, ccy = y + (s - 1) / 2;
         const csx = (ccx - ccy) * TW2, csy = (ccx + ccy) * TH2 + TH2;
         ctx.beginPath();
         ctx.ellipse(csx, csy, rr * TW2 * 1.02, rr * TH2 * 1.02, 0, 0, Math.PI * 2);
-        ctx.strokeStyle = bdef.radius ? 'rgba(255,215,94,0.8)' : 'rgba(120,220,255,0.7)';
+        ctx.strokeStyle = bdef.range ? 'rgba(255,90,60,0.8)'
+          : bdef.radius ? 'rgba(255,215,94,0.8)' : 'rgba(120,220,255,0.7)';
         ctx.lineWidth = 2;
         ctx.setLineDash([8, 6]);
         ctx.stroke();
@@ -561,8 +745,15 @@ const Render = (() => {
     const sxr = W / MAPW, syr = H / MAPH;
     for (const b of G.buildings) {
       const def = BUILDINGS[b.key];
-      mmCtx.fillStyle = b.key === 'house' ? '#e8e0c8' : (b.key === 'warehouse' ? '#ffd75e' : '#c0703a');
+      mmCtx.fillStyle = b.key === 'house' ? '#e8e0c8'
+        : (b.key === 'warehouse' || b.key === 'kontor') ? '#ffd75e' : '#c0703a';
       mmCtx.fillRect(b.x * sxr - 0.5, b.y * syr - 0.5, Math.max(2, def.size * sxr), Math.max(2, def.size * syr));
+    }
+    if (G.pirate && G.pirate.state !== 'sinking') { // pirate blip
+      mmCtx.fillStyle = '#ff2d1e';
+      mmCtx.beginPath();
+      mmCtx.arc(G.pirate.x * sxr, G.pirate.y * syr, 2.5, 0, Math.PI * 2);
+      mmCtx.fill();
     }
     const w = canvas.clientWidth, h = canvas.clientHeight;
     const cs = [

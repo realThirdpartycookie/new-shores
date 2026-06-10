@@ -78,6 +78,8 @@ src += `
 
   // deterministic island for the rest of the test
   newGame(12345);
+  G.eventT = 1e9;  // keep random events out of the economy tests
+  G.pirateT = 1e9; // pirates get their own section
   const wh = G.buildings[0];
 
   console.log('-- placement rejections --');
@@ -218,12 +220,15 @@ src += `
   const wealth = { gold: G.stock.gold, food: G.stock.food, wood: G.stock.wood, storm: G.stormT };
   simTick(1);
   const changed = G.stock.food > wealth.food || G.stock.wood > wealth.wood ||
-    G.stock.gold > wealth.gold + 50 || G.stormT > wealth.storm;
+    G.stock.gold > wealth.gold + 50 || G.stormT > wealth.storm ||
+    G.buildings.some(b => b.fire != null || b.sick != null);
   assert(changed, 'a random event fired');
   G.stormT = 0;
+  G.eventT = 1e9; // back to determinism
+  for (const b of G.buildings) { b.fire = null; b.sick = null; } // clean up event fallout
 
   console.log('-- demolish --');
-  const h0 = houses[0], count0 = G.buildings.length;
+  const h0 = G.buildings.find(b => b.key === 'house'), count0 = G.buildings.length;
   demolishAt(h0.x, h0.y);
   assert(G.buildings.length === count0 - 1, 'house demolished');
 
@@ -249,6 +254,135 @@ src += `
   assert(G.popHist.length > 5, 'population history sampled (' + G.popHist.length + ' points)');
   const lastEntry = G.popHist[G.popHist.length - 1];
   assert(Array.isArray(lastEntry) && lastEntry.length === 4, 'history entries are [t,p0,p1,p2]');
+
+  console.log('-- archipelago & fertility --');
+  const bigIslands = [];
+  for (let id = 1; id <= G.islands.count; id++) {
+    if (G.islands.sizes[id] >= 30) bigIslands.push(id);
+  }
+  assert(bigIslands.length >= 2, 'map has ' + bigIslands.length + ' settleable islands (>= 2)');
+  for (const crop of FERTILITY_CROPS) {
+    assert(bigIslands.some(id => G.fertility[id] && G.fertility[id][crop]), crop + ' grows somewhere');
+  }
+  const wh2 = G.buildings.find(b => b.key === 'warehouse');
+  const homeIsl = islandAt(wh2.x, wh2.y);
+  let lackIsl = null, lackCrop = null;
+  for (const id of bigIslands) {
+    for (const crop of FERTILITY_CROPS) {
+      if (!G.fertility[id][crop]) { lackIsl = id; lackCrop = crop; }
+    }
+  }
+  if (lackIsl) {
+    G.unlocked = 3; // so the tier gate doesn't mask the fertility reason
+    let denied = null;
+    for (let i = 0; i < MAPW * MAPH && !denied; i++) {
+      if (G.islands.ids[i] !== lackIsl) continue;
+      const x = i % MAPW, y = Math.floor(i / MAPW);
+      const r = canPlace(lackCrop, x, y, true);
+      if (!r.ok && /island cannot/.test(r.why)) denied = r.why;
+    }
+    assert(!!denied, 'fertility blocks ' + lackCrop + ' on island ' + lackIsl);
+  } else {
+    assert(true, 'no infertile island on this seed (skip fertility-denial check)');
+  }
+
+  console.log('-- kontor colony --');
+  let kpos = null;
+  for (let y = 0; y < MAPH && !kpos; y++) {
+    for (let x = 0; x < MAPW && !kpos; x++) {
+      if (islandAt(x, y) === homeIsl || islandAt(x, y) === 0) continue;
+      if (canPlace('kontor', x, y, true).ok) kpos = { x, y };
+    }
+  }
+  assert(!!kpos, 'found a kontor spot on a foreign island');
+  const capBefore = storageCap();
+  placeBuilding('kontor', kpos.x, kpos.y, true);
+  assert(storageCap() === capBefore + 150, 'kontor adds 150 storage');
+  assert(G.zone[idx(kpos.x + 3, kpos.y)] === 1 || G.zone[idx(kpos.x - 3, kpos.y)] === 1,
+    'kontor opens a building zone on the new island');
+  const farRoad = placeRoad(kpos.x - 1, kpos.y);
+  assert(!farRoad || G.roadOk[idx(kpos.x - 1, kpos.y)] === 1, 'roads connect to the kontor as a base');
+
+  console.log('-- fire --');
+  const victim = G.buildings.find(b => b.done && BUILDINGS[b.key].prod);
+  assert(!!victim, 'found a building to torch');
+  ignite(victim);
+  assert(victim.fire != null, 'building caught fire');
+  for (let i = 0; i < 40; i++) simTick(0.5);
+  assert(!G.buildings.includes(victim), 'uncovered building burned down');
+
+  let fhSpot = null;
+  for (const [nx, ny] of footprintNeighbors(wh2.x - 1, wh2.y - 1, 4)) {
+    if (canPlace('firehouse', nx, ny, true).ok) { fhSpot = { x: nx, y: ny }; break; }
+  }
+  if (!fhSpot) {
+    outer4:
+    for (let y = wh2.y - 8; y < wh2.y + 8; y++) for (let x = wh2.x - 8; x < wh2.x + 8; x++) {
+      if (canPlace('firehouse', x, y, true).ok) { fhSpot = { x, y }; break outer4; }
+    }
+  }
+  assert(!!fhSpot, 'found a fire station spot');
+  const fhRes = placeBuilding('firehouse', fhSpot.x, fhSpot.y, true);
+  fhRes.b.connected = true; // test shim: pretend the road is laid
+  const victim2 = G.buildings.find(b => b.done && b.key === 'house' &&
+    (b.x - fhSpot.x) ** 2 + (b.y - fhSpot.y) ** 2 < 81);
+  if (victim2) {
+    ignite(victim2);
+    for (let i = 0; i < 30; i++) simTick(0.5);
+    assert(G.buildings.includes(victim2) && victim2.fire == null, 'fire brigade saved the covered house');
+  } else {
+    assert(true, 'no house near station on this seed (skip brigade check)');
+  }
+
+  console.log('-- plague --');
+  const sickHouse = G.buildings.find(b => b.key === 'house' && b.done);
+  sickHouse.res = 8;
+  sicken(sickHouse);
+  assert(sickHouse.sick != null, 'house fell ill');
+  let minRes = 8;
+  for (let i = 0; i < 70; i++) { simTick(0.5); minRes = Math.min(minRes, sickHouse.res); }
+  assert(sickHouse.sick == null, 'plague passed');
+  assert(minRes < 8, 'plague cost residents (dipped to ' + minRes + ')');
+
+  console.log('-- pirates & watchtowers --');
+  for (const b of G.buildings) if (b.key === 'house') b.res = 8;
+  // retry spawns until the anchorage has defensible ground nearby
+  let anchor = null;
+  for (let attempt = 0; attempt < 8 && !anchor; attempt++) {
+    G.pirate = null;
+    G.pirateT = 0.01;
+    simTick(1);
+    if (!G.pirate) continue;
+    const a = G.pirate.path[G.pirate.path.length - 1];
+    outer5:
+    for (let dy = -7; dy <= 7; dy++) for (let dx = -7; dx <= 7; dx++) {
+      if (dx * dx + dy * dy > 49) continue;
+      if (canPlace('watchtower', a[0] + dx, a[1] + dy, true).ok) { anchor = a; break outer5; }
+    }
+  }
+  assert(!!G.pirate, 'pirate ship spawned');
+  assert(G.pirateSeen, 'pirate warning raised');
+  assert(!!anchor, 'found an anchorage with defensible ground');
+  let towers = 0;
+  for (let r = 1; r <= 7 && towers < 2; r++) {
+    for (let dy = -r; dy <= r && towers < 2; dy++) {
+      for (let dx = -r; dx <= r && towers < 2; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        if (dx * dx + dy * dy > 49) continue; // stay well inside cannon range 9
+        const x = anchor[0] + dx, y = anchor[1] + dy;
+        if (canPlace('watchtower', x, y, true).ok) {
+          placeBuilding('watchtower', x, y, true);
+          towers++;
+        }
+      }
+    }
+  }
+  assert(towers >= 1, 'placed ' + towers + ' watchtower(s) at the anchorage');
+  const goldBeforePirate = G.stock.gold;
+  for (let i = 0; i < 300 && G.pirate; i++) simTick(0.5);
+  assert(!G.pirate, 'pirate encounter resolved');
+  assert(G.pirateSunk >= 1, 'watchtowers sank the pirate (' + G.pirateSunk + ')');
+  assert(G.shots.length === 0, 'cannonball animations cleaned up');
 
   console.log('-- victory --');
   G.flourished = true;

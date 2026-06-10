@@ -375,6 +375,102 @@ const Sprites = (() => {
     return s;
   };
 
+  D.kontor = () => {
+    const s = base(2, 78);
+    plot(s.ctx, s.cx, s.cy, 2, '#c2a878', '#9a8050', '#ab9162');
+    const b = box(s.ctx, s.cx, s.cy, 1.3, 1.1, 24, '#d8c9a3', '#ae9468', '#c2a87a', 0, -0.1);
+    texTimber(s.ctx, b.faceL);
+    texTimber(s.ctx, b.faceR);
+    const r = gable(s.ctx, b, 15, '#3a6ea8', '#30598a', 'rgba(25,50,85,0.5)');
+    doorAt(s.ctx, pt(s.cx, s.cy, 0.1, 0.45), 8, 12, '#4a3018', true);
+    // colony banner
+    const f = [r.E1[0] * 0.5 + r.E2[0] * 0.5, r.E1[1] * 0.5 + r.E2[1] * 0.5];
+    line(s.ctx, f, [f[0], f[1] - 14], '#4a3322', 1.5);
+    poly(s.ctx, [[f[0], f[1] - 14], [f[0] + 10, f[1] - 11], [f[0], f[1] - 8]], '#3a6ea8', OUT);
+    // small jetty towards the front + cargo
+    const jp = pt(s.cx, s.cy, 0.4, 0.95);
+    s.ctx.fillStyle = '#8a6a40';
+    s.ctx.fillRect(jp[0] - 3, jp[1] - 2, 16, 3.6);
+    line(s.ctx, [jp[0], jp[1] + 1.6], [jp[0], jp[1] + 5], '#6d5436', 1.6);
+    line(s.ctx, [jp[0] + 11, jp[1] + 1.6], [jp[0] + 11, jp[1] + 5], '#6d5436', 1.6);
+    crate(s.ctx, s.cx, s.cy, -0.65, 0.6);
+    barrel(s.ctx, ...pt(s.cx, s.cy, -0.85, 0.4), 3.6);
+    return s;
+  };
+
+  D.watchtower = () => {
+    const s = base(1, 78);
+    plot(s.ctx, s.cx, s.cy, 1, '#a8a8a2', '#828280', '#959590');
+    const tp = pt(s.cx, s.cy, 0, 0);
+    // tapered stone tower
+    s.ctx.fillStyle = '#9a9a94';
+    s.ctx.beginPath();
+    s.ctx.moveTo(tp[0] - 11, tp[1] - 4);
+    s.ctx.lineTo(tp[0] - 8, tp[1] - 42);
+    s.ctx.lineTo(tp[0] + 8, tp[1] - 42);
+    s.ctx.lineTo(tp[0] + 11, tp[1] - 4);
+    s.ctx.closePath(); s.ctx.fill();
+    s.ctx.strokeStyle = '#5e5e5a'; s.ctx.lineWidth = 1; s.ctx.stroke();
+    s.ctx.fillStyle = '#85857f'; // shaded side
+    s.ctx.beginPath();
+    s.ctx.moveTo(tp[0] - 11, tp[1] - 4);
+    s.ctx.lineTo(tp[0] - 8, tp[1] - 42);
+    s.ctx.lineTo(tp[0] - 2, tp[1] - 42);
+    s.ctx.lineTo(tp[0] - 3.5, tp[1] - 4);
+    s.ctx.closePath(); s.ctx.fill();
+    // stone courses
+    s.ctx.strokeStyle = 'rgba(70,70,66,0.4)'; s.ctx.lineWidth = 0.7;
+    for (let i = 1; i < 6; i++) {
+      const yy = tp[1] - 4 - i * 6.4;
+      const w = 11 - i * 0.5;
+      s.ctx.beginPath(); s.ctx.moveTo(tp[0] - w, yy); s.ctx.lineTo(tp[0] + w, yy); s.ctx.stroke();
+    }
+    // crenellated top platform
+    s.ctx.fillStyle = '#a8a8a2';
+    s.ctx.beginPath();
+    s.ctx.ellipse(tp[0], tp[1] - 43, 11, 4.6, 0, 0, Math.PI * 2);
+    s.ctx.fill();
+    s.ctx.strokeStyle = '#5e5e5a'; s.ctx.stroke();
+    s.ctx.fillStyle = '#8f8f89';
+    for (let i = -2; i <= 2; i++) {
+      s.ctx.fillRect(tp[0] + i * 4.4 - 1.4, tp[1] - 49, 2.8, 5);
+    }
+    // cannon barrel pointing seaward
+    s.ctx.strokeStyle = '#3c3c40'; s.ctx.lineWidth = 3;
+    s.ctx.beginPath();
+    s.ctx.moveTo(tp[0] + 1, tp[1] - 45);
+    s.ctx.lineTo(tp[0] + 12, tp[1] - 40);
+    s.ctx.stroke();
+    circle(s.ctx, tp[0] + 12, tp[1] - 40, 1.8, '#26262a', null);
+    return s;
+  };
+
+  D.firehouse = () => {
+    const s = base(2, 64);
+    plot(s.ctx, s.cx, s.cy, 2, '#b6b09a', '#8f8a76', '#a39d87');
+    const b = box(s.ctx, s.cx, s.cy, 1.15, 0.8, 18, '#e2d5be', '#c2b59e', '#d2c5ac', 0, 0.05);
+    texStone(s.ctx, b.faceL, 4, 'rgba(110,100,80,0.35)');
+    texStone(s.ctx, b.faceR, 4, 'rgba(110,100,80,0.3)');
+    gable(s.ctx, b, 12, '#b8463a', '#93362d', 'rgba(110,30,20,0.5)');
+    // wide red wagon doors
+    const dp = pt(s.cx, s.cy, -0.05, 0.45);
+    s.ctx.fillStyle = '#9a3a30';
+    s.ctx.fillRect(dp[0] - 8, dp[1] - 12, 16, 12);
+    s.ctx.strokeStyle = '#e8ddc8'; s.ctx.lineWidth = 1.1;
+    s.ctx.strokeRect(dp[0] - 8, dp[1] - 12, 16, 12);
+    s.ctx.beginPath();
+    s.ctx.moveTo(dp[0], dp[1] - 12); s.ctx.lineTo(dp[0], dp[1]);
+    s.ctx.stroke();
+    // bell bracket on the gable
+    const bp = pt(s.cx, s.cy, 0.62, 0.2, 24);
+    line(s.ctx, bp, [bp[0] + 6, bp[1] - 2], '#4a3322', 1.4);
+    circle(s.ctx, bp[0] + 6, bp[1] + 2, 2.6, '#d8b13c', '#8a6a1c', 0.9);
+    // water barrels
+    barrel(s.ctx, ...pt(s.cx, s.cy, 0.55, 0.7), 4);
+    barrel(s.ctx, ...pt(s.cx, s.cy, 0.78, 0.5), 3.4);
+    return s;
+  };
+
   D.market = () => {
     const s = base(2, 54);
     // cobbled square
@@ -1198,6 +1294,54 @@ const Sprites = (() => {
     return tileCache[k];
   }
 
+  function pirateShip() {
+    const w = 64, h = 72;
+    const c = mk(w * SS, h * SS);
+    const ctx = c.getContext('2d');
+    ctx.scale(SS, SS);
+    ctx.lineJoin = 'round';
+    // dark hull
+    ctx.beginPath();
+    ctx.moveTo(8, 48);
+    ctx.quadraticCurveTo(32, 62, 54, 47);
+    ctx.lineTo(50, 38); ctx.lineTo(14, 38);
+    ctx.closePath();
+    ctx.fillStyle = '#3a3027'; ctx.fill();
+    ctx.strokeStyle = '#1f1a13'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.strokeStyle = 'rgba(200,170,120,0.35)'; ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(11, 44); ctx.quadraticCurveTo(32, 54, 52, 43);
+    ctx.stroke();
+    // gunports
+    ctx.fillStyle = '#15110c';
+    for (const gx of [20, 30, 40]) ctx.fillRect(gx, 40, 3.4, 3);
+    // masts
+    ctx.strokeStyle = '#1f1a13'; ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(28, 38); ctx.lineTo(28, 5);
+    ctx.moveTo(44, 38); ctx.lineTo(44, 14);
+    ctx.stroke();
+    // tattered dark sails
+    ctx.beginPath();
+    ctx.moveTo(28, 8);
+    ctx.quadraticCurveTo(46, 18, 29, 34);
+    ctx.closePath();
+    ctx.fillStyle = '#564f44'; ctx.fill();
+    ctx.strokeStyle = '#2e2a22'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(44, 16);
+    ctx.quadraticCurveTo(56, 24, 45, 35);
+    ctx.closePath();
+    ctx.fillStyle = '#4c463c'; ctx.fill(); ctx.stroke();
+    // jolly roger
+    ctx.beginPath(); ctx.moveTo(28, 5); ctx.lineTo(40, 8); ctx.lineTo(28, 11); ctx.closePath();
+    ctx.fillStyle = '#16130f'; ctx.fill();
+    ctx.fillStyle = '#e8e0d0';
+    ctx.beginPath(); ctx.arc(33, 8, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(31.4, 9.6, 3.2, 0.8);
+    return { c, w, h, oy: 56, chimney: null };
+  }
+
   /* ---------------- public API ---------------- */
 
   function get(key) {
@@ -1209,6 +1353,7 @@ const Sprites = (() => {
     else if (key.startsWith('rock')) s = rock(parseInt(key.slice(4), 10) || 0);
     else if (key.startsWith('scaffold')) s = scaffold(parseInt(key.slice(8), 10) || 1);
     else if (key === 'ship') { cache[key] = ship(); return cache[key]; }
+    else if (key === 'pirateship') { cache[key] = pirateShip(); return cache[key]; }
     else if (D[key]) s = D[key](0);
     else s = D.house0(0);
     cache[key] = { c: s.c, w: s.w, h: s.h, oy: s.oy, chimney: s.chimney || null };

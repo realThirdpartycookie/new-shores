@@ -12,7 +12,8 @@
 
 const AI = (() => {
   const BUILD_ACTIONS = ['house', 'market', 'chapel', 'woodcutter', 'fisher', 'hunter',
-    'sheep', 'weaver', 'grain', 'bakery', 'mine', 'toolmaker', 'tavern', 'potato', 'distillery', 'depot'];
+    'sheep', 'weaver', 'grain', 'bakery', 'mine', 'toolmaker', 'tavern', 'potato', 'distillery', 'depot',
+    'watchtower', 'firehouse'];
   const ACTIONS = ['wait', ...BUILD_ACTIONS.map(k => 'build:' + k), 'sell', 'buytools', 'buyfood'];
 
   let net = null;
@@ -76,16 +77,18 @@ const AI = (() => {
     f.push(clamp((countOf('potato') - countOf('distillery')) / 3, -1, 1));
     f.push(clamp((countOf('mine') - countOf('toolmaker')) / 3, -1, 1));
     f.push(clamp((hs.capr ? hs.res / hs.capr : 1) - 0.55, -1, 1));              // fullness margin
+    f.push(G.pirateSeen ? 1 : 0);
+    f.push(clamp(countOf('watchtower') / 3, 0, 1));
     return f;                                                                   // = 57
   }
-  const FEATURE_COUNT = 57;
+  const FEATURE_COUNT = 61;
 
   /* ---------------- placement: where to build ---------------- */
 
   function baseAdjacentSet() {
     const s = new Set();
     for (const b of G.buildings) {
-      if (b.key !== 'warehouse' && !(b.key === 'depot' && b.done)) continue;
+      if (!isBase(b)) continue;
       for (const [nx, ny] of footprintNeighbors(b.x, b.y, BUILDINGS[b.key].size)) {
         if (inBounds(nx, ny)) s.add(idx(nx, ny));
       }
@@ -104,7 +107,7 @@ const AI = (() => {
       const i = idx(nx, ny);
       if (G.roadOk[i]) return [];
       const nb = G.grid[i];
-      if (nb && (nb.key === 'warehouse' || (nb.key === 'depot' && nb.done))) return [];
+      if (nb && isBase(nb)) return [];
     }
     const inFootprint = (tx, ty) => tx >= x && tx < x + size && ty >= y && ty < y + size;
     const passable = i => {
@@ -146,7 +149,7 @@ const AI = (() => {
   function findSpotFor(key) {
     const def = BUILDINGS[key];
     const centers = G.buildings.filter(b =>
-      b.key === 'warehouse' || ((b.key === 'market' || b.key === 'depot') && b.done));
+      b.key === 'warehouse' || ((b.key === 'market' || b.key === 'depot' || b.key === 'kontor') && b.done));
     const services = G.buildings.filter(b => BUILDINGS[b.key].service && b.done);
     const seen = new Set();
     let best = null;
@@ -280,6 +283,8 @@ const AI = (() => {
     if (G.stock.tools < 3 && roughValid('buytools')) return 'buytools';
     if (hs.mkMiss > 0 && can('market')) return 'build:market';
     if (n('chapel') === 0 && popOf(0) >= 14 && can('chapel')) return 'build:chapel';
+    if (G.pirateSeen && n('watchtower') < 2 && can('watchtower')) return 'build:watchtower';
+    if (hs.houses >= 10 && n('firehouse') < 1 + Math.floor(hs.houses / 18) && can('firehouse')) return 'build:firehouse';
     // grow the town while supplies hold — mild deficits are fine, famine is not
     if (fullness > 0.55 && (foodRate > -0.5 || G.stock.food > 80) && can('house')) return 'build:house';
     if (G.unlocked >= 2) {
@@ -334,6 +339,9 @@ const AI = (() => {
     'build:potato': () => 'Potatoes are the first step towards liquor for Citizens.',
     'build:distillery': () => 'A distillery turns potatoes into liquor.',
     'build:depot': () => 'Storage is overflowing — a depot adds capacity.',
+    'build:watchtower': () => 'Pirates prowl these waters — cannons will greet them.',
+    'build:firehouse': () => 'A fire brigade saves buildings before they burn down.',
+    'build:kontor': () => 'Found a colony to use another island\'s fertile ground.',
     sell: () => `Selling surplus ${surplusGood() ? RES_META[surplusGood()].name.toLowerCase() : 'goods'} for gold.`,
     buytools: () => 'Buying tools from the trader to keep building.',
     buyfood: () => 'Emergency rations — the pantry is nearly empty!',
