@@ -57,7 +57,7 @@ sandbox.addEventListener = () => {};
 sandbox.removeEventListener = () => {};
 vm.createContext(sandbox);
 
-const files = ['config.js', 'nn.js', 'ai-weights.js', 'sprites.js', 'map.js', 'game.js', 'ai.js', 'render.js', 'ui.js', 'main.js'];
+const files = ['config.js', 'nn.js', 'ai-weights.js', 'sprites.js', 'map.js', 'game.js', 'ai.js', 'render.js', 'music.js', 'ui.js', 'main.js'];
 let src = '';
 for (const f of files) {
   src += fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8') + '\n';
@@ -253,7 +253,7 @@ src += `
   console.log('-- stats history --');
   assert(G.popHist.length > 5, 'population history sampled (' + G.popHist.length + ' points)');
   const lastEntry = G.popHist[G.popHist.length - 1];
-  assert(Array.isArray(lastEntry) && lastEntry.length === 4, 'history entries are [t,p0,p1,p2]');
+  assert(Array.isArray(lastEntry) && lastEntry.length === 5, 'history entries are [t,p0,p1,p2,p3]');
 
   console.log('-- archipelago & fertility --');
   const bigIslands = [];
@@ -384,6 +384,66 @@ src += `
   assert(G.pirateSunk >= 1, 'watchtowers sank the pirate (' + G.pirateSunk + ')');
   assert(G.shots.length === 0, 'cannonball animations cleaned up');
 
+  console.log('-- merchants & spice --');
+  assert(TIERS.length === 4 && TIERS[3].key === 'merchant', 'fourth tier (Merchants) defined');
+  assert(TIERS[2].upgrade && TIERS[2].upgrade.needsGood === 'spice', 'citizens upgrade needs spice');
+  assert(GOODS.includes('spice') && BUILDINGS.spice.prod.out === 'spice', 'spice good and Spice Garden exist');
+  const homeFert = G.fertility[islandAt(wh2.x, wh2.y)];
+  assert(homeFert && homeFert.spice === false, 'spice never grows on the home island');
+  assert(bigIslands.some(id => G.fertility[id] && G.fertility[id].spice), 'spice grows on a colony island');
+  const diagHouse = G.buildings.find(b => b.key === 'house' && b.done);
+  const diag = whyNoUpgrade(diagHouse);
+  assert(diag === null || typeof diag === 'string', 'whyNoUpgrade yields a diagnosis (' + diag + ')');
+
+  console.log('-- price drift --');
+  G.priceDrift = {};
+  G.stock.wood = 200;
+  const gold2 = Math.floor(G.stock.gold);
+  sellGood('wood', 5);
+  assert(Math.floor(G.stock.gold) === gold2 + 5 * TRADE.wood.sell, 'first sale settles at the base price');
+  assert(priceOf('wood').drift < 0, 'selling pushes the price down');
+  assert(priceOf('wood').sell <= TRADE.wood.sell, 'drifted sell price does not exceed base after dumping');
+  for (let i = 0; i < 30; i++) tickRates(1);
+  assert(Math.abs(priceOf('wood').drift) < 0.005, 'price drift relaxes back to base');
+
+  console.log('-- merchant ship --');
+  for (const b of G.buildings) if (b.key === 'house') b.res = 8;
+  G.trader = null;
+  G.traderT = 0.01;
+  simTick(1);
+  assert(!!G.trader, 'merchant ship spawned');
+  for (let i = 0; i < 800 && G.trader && G.trader.state === 'approach'; i++) simTick(0.5);
+  assert(G.trader && G.trader.state === 'docked', 'merchant ship docked at the harbour');
+  assert(G.trader.deals.length === 3 && G.trader.deals.every(d => d.left === 20), 'docked merchant offers 3 deals');
+  G.trader.deals[0] = { good: 'wood', mode: 'sell', left: 20, price: 10 }; // deterministic deal
+  G.stock.wood = 50;
+  const gold3 = Math.floor(G.stock.gold);
+  assert(dealTrade(0, 5), 'deal accepted');
+  assert(Math.floor(G.stock.gold) === gold3 + 50 && G.stock.wood === 45, 'deal paid the premium price');
+  assert(G.trader.deals[0].left === 15, 'deal volume is limited');
+  for (let i = 0; i < 400 && G.trader; i++) simTick(0.5);
+  assert(!G.trader, 'merchant ship sailed away');
+
+  console.log('-- expeditions --');
+  G.stock.gold = 5000; G.stock.food = 100; G.stock.wood = 100; G.stock.tools = 50;
+  const exp1 = startExpedition();
+  assert(exp1.ok, 'expedition launched');
+  assert(!startExpedition().ok, 'only one expedition at a time');
+  assert(Math.floor(G.stock.gold) === 5000 - EXPEDITION_COST.gold, 'outfitting cost charged');
+  G.expedition.dur = 4; // shorten the voyage for the test
+  for (let i = 0; i < 20; i++) simTick(0.5);
+  assert(!G.expedition, 'expedition resolved on return');
+  assert(G.expeditionsDone === 1, 'expedition voyage counted');
+
+  console.log('-- achievements --');
+  G.stock.gold = 20000;
+  checkAchievements();
+  assert(G.achievements.tycoon != null, 'tycoon achievement awarded at 10k gold');
+  const achCount = Object.keys(G.achievements).length;
+  award('tycoon');
+  assert(Object.keys(G.achievements).length === achCount, 'awards are idempotent');
+  assert(G.achievements.roadbuilder == null || true, 'achievement table evaluates without throwing');
+
   console.log('-- victory --');
   G.flourished = true;
   UI.updateHUD();
@@ -399,8 +459,27 @@ src += `
   assert(Math.floor(G.stock.gold) === goldSaved, 'gold restored');
   assert(popOf(0) === popBefore, 'population restored');
   assert(G.popHist.length > 5, 'population history survives save/load');
+  assert(G.expeditionsDone === 1, 'expedition count survives save/load');
+  assert(G.achievements.tycoon != null, 'achievements survive save/load');
   for (let i = 0; i < 40; i++) simTick(0.5); // sim keeps running after load
   assert(true, 'sim runs after load without throwing');
+
+  console.log('-- legacy (pre-spice) save migration --');
+  const legacy = JSON.parse(localStorage.getItem(SAVE_KEY));
+  for (const id in legacy.fertility) delete legacy.fertility[id].spice;
+  delete legacy.priceDrift; delete legacy.achievements; delete legacy.expedition;
+  delete legacy.expeditionsDone; delete legacy.expBonus; delete legacy.spiceMade;
+  legacy.popHist = legacy.popHist.map(e => e.slice(0, 4));
+  delete legacy.stock.spice;
+  localStorage.setItem(SAVE_KEY, JSON.stringify(legacy));
+  assert(loadGame(), 'legacy save loads');
+  assert(G.stock.spice === 0, 'spice stock defaults to 0');
+  assert(Object.values(G.fertility).some(f => f && f.spice), 'spice fertility derived for old saves');
+  const wh4 = G.buildings.find(b => b.key === 'warehouse');
+  assert(G.fertility[islandAt(wh4.x, wh4.y)].spice === false, 'home island still cannot grow spice');
+  assert(G.expeditionsDone === 0 && Object.keys(G.achievements).length === 0, 'new counters default cleanly');
+  for (let i = 0; i < 20; i++) simTick(0.5);
+  assert(true, 'sim runs after legacy load without throwing');
 
   console.log('');
   console.log(pass + ' passed, ' + fail + ' failed');

@@ -14,6 +14,11 @@ const Sprites = (() => {
   const tileCache = {};
   const SS = 2; // supersampling factor
 
+  // Night rendering: while true, every window draws lit. Each windowAt call
+  // also records its centre into LIGHTS so the renderer can add a warm glow.
+  let NIGHT = false;
+  let LIGHTS = [];
+
   function mk(w, h) {
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
@@ -175,6 +180,7 @@ const Sprites = (() => {
   /* Window with frame, glass shine and sill. */
   function windowAt(ctx, p, w = 5, h = 6, lit = false) {
     const [x, y] = [p[0] - w / 2, p[1] - h];
+    if (NIGHT) { LIGHTS.push([p[0], p[1] - h / 2]); lit = true; }
     ctx.fillStyle = '#54422c';
     ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
     ctx.fillStyle = lit ? '#ffd98a' : '#9cc7da';
@@ -331,6 +337,50 @@ const Sprites = (() => {
     // step
     const st = pt(s.cx, s.cy, 0.46, 0.14);
     s.ctx.fillStyle = '#9a9488'; s.ctx.fillRect(st[0] - 3.5, st[1] - 1, 7, 2);
+    return s;
+  };
+
+  D.house3 = (v) => { // merchant townhouse: tall stucco, slate roof, balcony
+    const s = base(1, 96);
+    const roofs = [['#5a4a72', '#463857'], ['#724a4a', '#573838'], ['#4a5f72', '#384a57']][v];
+    plot(s.ctx, s.cx, s.cy, 1, '#c9c2b2', '#a29a88', '#b6ae9c');
+    const b = box(s.ctx, s.cx, s.cy, 0.82, 0.82, 46, '#ece5d8', '#c9c0ae', '#dcd3c0');
+    texStone(s.ctx, b.faceL, 7, 'rgba(105,95,78,0.3)');
+    texStone(s.ctx, b.faceR, 7, 'rgba(105,95,78,0.25)');
+    // storey dividers
+    for (const t of [0.36, 0.68]) {
+      line(s.ctx, lerp(b.gC, b.C, t), lerp(b.gD, b.D, t), '#b0a68f', 1.3);
+      line(s.ctx, lerp(b.gB, b.B, t), lerp(b.gC, b.C, t), '#b0a68f', 1.3);
+    }
+    const r = gable(s.ctx, b, 14, roofs[0], roofs[1], 'rgba(25,20,40,0.45)');
+    chimneyAt(s, -0.2, 0.08, 56);
+    // windows on both storeys
+    for (const [u, z] of [[-0.22, 9], [0.18, 9], [-0.22, 26], [0.18, 26]]) {
+      windowAt(s.ctx, pt(s.cx, s.cy, u, 0.42, z), 5, 6.5);
+    }
+    windowAt(s.ctx, pt(s.cx, s.cy, 0.42, -0.14, 26), 5, 6.5);
+    // balcony under the upper front window
+    const bal = pt(s.cx, s.cy, 0.42, -0.14, 19);
+    s.ctx.fillStyle = '#b0a68f';
+    s.ctx.fillRect(bal[0] - 5.5, bal[1], 11, 1.6);
+    s.ctx.strokeStyle = '#6d5a3c'; s.ctx.lineWidth = 0.8;
+    s.ctx.beginPath();
+    for (let i = -2; i <= 2; i++) {
+      s.ctx.moveTo(bal[0] + i * 2.4, bal[1]);
+      s.ctx.lineTo(bal[0] + i * 2.4, bal[1] - 3.4);
+    }
+    s.ctx.moveTo(bal[0] - 5.5, bal[1] - 3.4); s.ctx.lineTo(bal[0] + 5.5, bal[1] - 3.4);
+    s.ctx.stroke();
+    // arched door with gold pediment and step
+    doorAt(s.ctx, pt(s.cx, s.cy, 0.42, 0.16), 6, 10, '#3a2c1a', true);
+    const pe = pt(s.cx, s.cy, 0.42, 0.16, 12);
+    poly(s.ctx, [[pe[0] - 4.5, pe[1]], [pe[0], pe[1] - 3], [pe[0] + 4.5, pe[1]]], '#e8c94a', '#a8862a', 0.8);
+    const st = pt(s.cx, s.cy, 0.48, 0.16);
+    s.ctx.fillStyle = '#9a9488'; s.ctx.fillRect(st[0] - 4, st[1] - 1, 8, 2);
+    // gilded finial on the ridge
+    const f = lerp(r.E1, r.E2, 0.5);
+    line(s.ctx, f, [f[0], f[1] - 7], '#6d5a3c', 1.2);
+    circle(s.ctx, f[0], f[1] - 8.5, 1.6, '#e8c94a', '#a8862a', 0.8);
     return s;
   };
 
@@ -867,6 +917,44 @@ const Sprites = (() => {
     return s;
   };
 
+  D.spice = () => { // colonial spice garden: red-pepper rows + drying rack
+    const s = base(2, 54);
+    plot(s.ctx, s.cx, s.cy, 2, '#a8825c', '#84623e', '#96724c');
+    for (let i = -2; i <= 2; i++) {
+      const r1 = pt(s.cx, s.cy, -0.82, i * 0.18 + 0.08), r2 = pt(s.cx, s.cy, 0.5, i * 0.18 + 0.08);
+      line(s.ctx, [r1[0], r1[1] - 1], [r2[0], r2[1] - 1], '#7c5c38', 2.4);
+      for (let k = 0; k < 6; k++) {
+        const p = lerp(r1, r2, 0.08 + k * 0.16);
+        s.ctx.strokeStyle = '#4c7a30'; s.ctx.lineWidth = 1;
+        s.ctx.beginPath();
+        s.ctx.moveTo(p[0], p[1] - 1); s.ctx.lineTo(p[0], p[1] - 4.4);
+        s.ctx.moveTo(p[0], p[1] - 3); s.ctx.lineTo(p[0] - 1.6, p[1] - 4);
+        s.ctx.moveTo(p[0], p[1] - 3.4); s.ctx.lineTo(p[0] + 1.6, p[1] - 4.4);
+        s.ctx.stroke();
+        s.ctx.fillStyle = (i + k) % 2 ? '#c83c2a' : '#d8502e'; // the peppers
+        s.ctx.fillRect(p[0] - 1.4, p[1] - 3.2, 1.4, 2.2);
+        s.ctx.fillRect(p[0] + 0.6, p[1] - 2.6, 1.3, 2);
+      }
+    }
+    // farmhouse
+    const b = box(s.ctx, s.cx, s.cy, 0.52, 0.48, 12, '#9a7344', '#7a5832', '#8c683c', 0.62, -0.58);
+    texRows(s.ctx, b.faceL, 3, 'rgba(60,40,20,0.45)');
+    gable(s.ctx, b, 8, '#a85830', '#8c4626', 'rgba(80,35,15,0.5)');
+    doorAt(s.ctx, pt(s.cx, s.cy, 0.62, -0.34), 5, 7);
+    // drying rack with pepper ristras
+    const ra = pt(s.cx, s.cy, 0.18, -0.66), rb = pt(s.cx, s.cy, 0.44, -0.56);
+    line(s.ctx, [ra[0], ra[1] - 9], [ra[0], ra[1]], '#5c452c', 1.4);
+    line(s.ctx, [rb[0], rb[1] - 9], [rb[0], rb[1]], '#5c452c', 1.4);
+    line(s.ctx, [ra[0], ra[1] - 8.5], [rb[0], rb[1] - 8.5], '#5c452c', 1);
+    for (let k = 0; k < 3; k++) {
+      const hx = ra[0] + (rb[0] - ra[0]) * (0.25 + k * 0.25);
+      const hy = ra[1] + (rb[1] - ra[1]) * (0.25 + k * 0.25) - 8.5;
+      s.ctx.fillStyle = '#c83c2a';
+      for (let j = 0; j < 3; j++) s.ctx.fillRect(hx - 0.8, hy + j * 2.2, 1.6, 1.8);
+    }
+    return s;
+  };
+
   D.grain = () => {
     const s = base(2, 54);
     plot(s.ctx, s.cx, s.cy, 2, '#c8a85c', '#a08440', '#b6964e');
@@ -1257,24 +1345,27 @@ const Sprites = (() => {
       ctx.quadraticCurveTo(cx, cy + (rng() - 0.5) * 8, cx + TW2 * 0.6, cy + (rng() - 0.5) * 6);
       ctx.stroke();
     } else if (type === TILE.WATER || type === TILE.DEEP) {
+      // Calm sea: near-flat colour with tiny variance — per-tile contrast
+      // reads as checker noise once thousands of tiles are visible.
       const deep = type === TILE.DEEP;
-      const g = ctx.createLinearGradient(0, 0, w, h);
+      const wv = Math.floor(rng() * 3) - 1;
+      const g = ctx.createLinearGradient(0, 0, 0, h);
       if (deep) {
-        g.addColorStop(0, `hsl(207, 64%, ${23 + v}%)`);
-        g.addColorStop(1, `hsl(210, 66%, ${18 + v}%)`);
+        g.addColorStop(0, `hsl(208, 58%, ${26 + wv}%)`);
+        g.addColorStop(1, `hsl(210, 60%, ${24 + wv}%)`);
       } else {
-        g.addColorStop(0, `hsl(196, 56%, ${41 + v}%)`);
-        g.addColorStop(1, `hsl(202, 58%, ${33 + v}%)`);
+        g.addColorStop(0, `hsl(202, 52%, ${34 + wv}%)`);
+        g.addColorStop(1, `hsl(204, 54%, ${31 + wv}%)`);
       }
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-      // wave dashes
-      ctx.strokeStyle = deep ? 'rgba(120,170,210,0.25)' : 'rgba(190,230,250,0.35)';
+      // faint horizontal wave strokes
+      ctx.strokeStyle = deep ? 'rgba(140,180,215,0.10)' : 'rgba(200,235,252,0.13)';
       ctx.lineWidth = 1;
-      for (let i = 0; i < (deep ? 2 : 3); i++) {
+      for (let i = 0; i < 2; i++) {
         const x = cx + (rng() - 0.5) * TW2, y = cy + (rng() - 0.5) * TH2;
         ctx.beginPath();
-        ctx.moveTo(x - 4, y);
-        ctx.quadraticCurveTo(x, y - 1.6, x + 4, y);
+        ctx.moveTo(x - 5, y);
+        ctx.quadraticCurveTo(x, y - 1.4, x + 5, y);
         ctx.stroke();
       }
     } else { // ROCK ground
@@ -1292,6 +1383,35 @@ const Sprites = (() => {
     const k = type * 8 + variant;
     if (!tileCache[k]) tileCache[k] = makeTile(type, variant);
     return tileCache[k];
+  }
+
+  function boat() { // tiny rowboat with a lone fisher
+    const w = 26, h = 18;
+    const c = mk(w * SS, h * SS);
+    const ctx = c.getContext('2d');
+    ctx.scale(SS, SS);
+    ctx.lineJoin = 'round';
+    // hull
+    ctx.beginPath();
+    ctx.moveTo(3, 9);
+    ctx.quadraticCurveTo(13, 15.5, 23, 9);
+    ctx.lineTo(21, 6.5); ctx.lineTo(5, 6.5);
+    ctx.closePath();
+    ctx.fillStyle = '#7a5836'; ctx.fill();
+    ctx.strokeStyle = '#46331e'; ctx.lineWidth = 1; ctx.stroke();
+    // bench + fisher
+    ctx.strokeStyle = '#5c452c'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(8, 7); ctx.lineTo(11, 7); ctx.stroke();
+    ctx.strokeStyle = '#4a5a68'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(12.5, 6.5); ctx.lineTo(12.5, 2.8); ctx.stroke();
+    ctx.fillStyle = '#e8b88a';
+    ctx.beginPath(); ctx.arc(12.5, 2.2, 1.4, 0, Math.PI * 2); ctx.fill();
+    // fishing rod
+    ctx.strokeStyle = '#5c452c'; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(13, 4.5); ctx.lineTo(21, 1.5); ctx.stroke();
+    ctx.strokeStyle = 'rgba(230,240,250,0.7)'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.moveTo(21, 1.5); ctx.lineTo(21.5, 8); ctx.stroke();
+    return { c, w, h, oy: 12, chimney: null };
   }
 
   function pirateShip() {
@@ -1346,17 +1466,24 @@ const Sprites = (() => {
 
   function get(key) {
     if (cache[key]) return cache[key];
+    // '@n' suffix: same sprite drawn with lit windows (cached separately)
+    const night = key.endsWith('@n');
+    const base = night ? key.slice(0, -2) : key;
+    NIGHT = night;
+    LIGHTS = [];
     let s;
-    let m = key.match(/^house(\d):(\d)$/);
-    if (m) s = D['house' + m[1]](parseInt(m[2], 10));
-    else if (key.startsWith('tree')) s = tree(parseInt(key.slice(4), 10) || 0);
-    else if (key.startsWith('rock')) s = rock(parseInt(key.slice(4), 10) || 0);
-    else if (key.startsWith('scaffold')) s = scaffold(parseInt(key.slice(8), 10) || 1);
-    else if (key === 'ship') { cache[key] = ship(); return cache[key]; }
-    else if (key === 'pirateship') { cache[key] = pirateShip(); return cache[key]; }
-    else if (D[key]) s = D[key](0);
+    let m = base.match(/^house(\d):(\d)$/);
+    if (m && D['house' + m[1]]) s = D['house' + m[1]](parseInt(m[2], 10));
+    else if (base.startsWith('tree')) s = tree(parseInt(base.slice(4), 10) || 0);
+    else if (base.startsWith('rock')) s = rock(parseInt(base.slice(4), 10) || 0);
+    else if (base.startsWith('scaffold')) s = scaffold(parseInt(base.slice(8), 10) || 1);
+    else if (base === 'ship') s = ship();
+    else if (base === 'pirateship') s = pirateShip();
+    else if (base === 'boat') s = boat();
+    else if (D[base]) s = D[base](0);
     else s = D.house0(0);
-    cache[key] = { c: s.c, w: s.w, h: s.h, oy: s.oy, chimney: s.chimney || null };
+    NIGHT = false;
+    cache[key] = { c: s.c, w: s.w, h: s.h, oy: s.oy, chimney: s.chimney || null, lights: LIGHTS };
     return cache[key];
   }
 

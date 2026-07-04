@@ -54,6 +54,10 @@
   canvas.addEventListener('mousedown', e => {
     const t = Render.screenToTile(e.clientX, e.clientY);
     mouse.downX = e.clientX; mouse.downY = e.clientY; mouse.moved = 0;
+    // grabbing the map catches any ongoing glide; stale drag velocity
+    // must not turn a plain click into a flick
+    Render.camVel.x = Render.camVel.y = 0;
+    dragVel = { x: 0, y: 0, t: performance.now() };
     if (e.button === 0) {
       mouse.leftDown = true;
       lastDragTile = t.x + ',' + t.y;
@@ -67,13 +71,21 @@
     }
   });
 
+  let dragVel = { x: 0, y: 0, t: 0 };
+
   window.addEventListener('mousemove', e => {
     const dx = e.clientX - mouse.x, dy = e.clientY - mouse.y;
     mouse.moved += Math.abs(dx) + Math.abs(dy);
-    // pan: right-drag always, left-drag when no tool
+    // pan: right-drag always, left-drag when no tool (write-through so the
+    // glide targets follow; velocity is kept for flick inertia on release)
     if (mouse.rightDown || (mouse.leftDown && !tool)) {
-      Render.cam.x += dx;
-      Render.cam.y += dy;
+      Render.cam.x += dx; Render.cam.y += dy;
+      Render.camT.x += dx; Render.camT.y += dy;
+      const now = performance.now();
+      // 8ms floor keeps a 1000Hz mouse's single-pixel twitch from
+      // registering as a huge velocity
+      const dt = Math.max(8, now - dragVel.t);
+      dragVel = { x: dx / dt * 1000, y: dy / dt * 1000, t: now };
     }
     mouse.x = e.clientX; mouse.y = e.clientY;
 
@@ -91,6 +103,14 @@
     updateHint();
   });
 
+  function releaseFlick() {
+    // recent fast drag? let the map glide on
+    if (performance.now() - dragVel.t < 60 && Math.hypot(dragVel.x, dragVel.y) > 250) {
+      Render.camVel.x = dragVel.x;
+      Render.camVel.y = dragVel.y;
+    }
+  }
+
   window.addEventListener('mouseup', e => {
     if (e.button === 0) {
       // plain click with no tool: select building under cursor
@@ -100,9 +120,11 @@
         G.selected = b ? b.id : null;
         if (b && Hooks.sfx) Hooks.sfx('click');
       }
+      if (!tool && mouse.leftDown && mouse.moved >= 8) releaseFlick();
       mouse.leftDown = false;
       lastDragTile = null;
     } else if (e.button === 2) {
+      if (mouse.rightDown && mouse.moved >= 8) releaseFlick();
       if (mouse.moved < 8) {
         // right-click: cancel tool or deselect
         if (UI.anyModalOpen()) UI.closeAllModals();
@@ -125,7 +147,7 @@
   const mmJump = e => {
     const r = Render.mmCanvas.getBoundingClientRect();
     const t = Render.minimapToTile(e.clientX - r.left, e.clientY - r.top);
-    Render.centerOn(t.x, t.y);
+    Render.flyTo(t.x, t.y);
   };
   Render.mmCanvas.addEventListener('mousedown', e => { mmDown = true; mmJump(e); });
   window.addEventListener('mousemove', e => { if (mmDown) mmJump(e); });
@@ -171,10 +193,15 @@
 
   function keyPan(dt) {
     const v = 480 * dt;
-    if (keys.has('w') || keys.has('arrowup')) Render.cam.y += v;
-    if (keys.has('s') || keys.has('arrowdown')) Render.cam.y -= v;
-    if (keys.has('a') || keys.has('arrowleft')) Render.cam.x += v;
-    if (keys.has('d') || keys.has('arrowright')) Render.cam.x -= v;
+    let mx = 0, my = 0;
+    if (keys.has('w') || keys.has('arrowup')) my += v;
+    if (keys.has('s') || keys.has('arrowdown')) my -= v;
+    if (keys.has('a') || keys.has('arrowleft')) mx += v;
+    if (keys.has('d') || keys.has('arrowright')) mx -= v;
+    if (mx || my) {
+      Render.cam.x += mx; Render.cam.y += my;
+      Render.camT.x += mx; Render.camT.y += my;
+    }
   }
 
   /* ---------------- game loop ---------------- */
@@ -186,6 +213,7 @@
     last = now;
 
     keyPan(dt);
+    Render.updateCamera(dt);
     if (!G.paused) simTick(dt * G.speed);
 
     // ghost state for renderer
@@ -204,6 +232,7 @@
     }
 
     Render.draw(G.time, !!tool && tool.mode !== 'demolish');
+    UI.hoverTile(mouse.x, mouse.y, !!tool || mouse.leftDown || mouse.rightDown);
 
     hudT += dt;
     if (hudT >= 0.15) { hudT = 0; UI.updateHUD(); }

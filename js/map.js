@@ -151,26 +151,29 @@ function floodFillIslands(tiles) {
 }
 
 /* Per-island crop fertilities. The home island always supports the early
- * chains; every crop exists somewhere in the archipelago. */
+ * chains; every crop exists somewhere in the archipelago — except spice,
+ * which only ever grows on colony islands. */
 function assignFertility(islands, homeId, seed) {
   const rng = mulberry32(seed ^ 0x5eed);
   const fert = {};
   for (let id = 1; id <= islands.count; id++) {
     if (islands.sizes[id] < 30) { // skerries support nothing
-      fert[id] = { sheep: false, grain: false, potato: false };
+      fert[id] = { sheep: false, grain: false, potato: false, spice: false };
       continue;
     }
     if (id === homeId) {
-      fert[id] = { sheep: true, grain: true, potato: rng() < 0.35 };
+      fert[id] = { sheep: true, grain: true, potato: rng() < 0.35, spice: false };
     } else {
-      fert[id] = { sheep: rng() < 0.55, grain: rng() < 0.55, potato: rng() < 0.7 };
+      fert[id] = { sheep: rng() < 0.55, grain: rng() < 0.55, potato: rng() < 0.7, spice: rng() < 0.6 };
     }
   }
-  // guarantee every crop somewhere
+  // guarantee every crop somewhere (spice never on the home island)
   for (const crop of FERTILITY_CROPS) {
     if (Object.values(fert).some(f => f[crop])) continue;
     const big = [];
-    for (let id = 1; id <= islands.count; id++) if (islands.sizes[id] >= 30) big.push(id);
+    for (let id = 1; id <= islands.count; id++) {
+      if (islands.sizes[id] >= 30 && !(crop === 'spice' && id === homeId)) big.push(id);
+    }
     if (big.length) fert[big[Math.floor(rng() * big.length)]][crop] = true;
   }
   return fert;

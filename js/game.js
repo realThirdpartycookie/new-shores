@@ -40,9 +40,18 @@ const G = {
   pirateSeen: false,
   pirateSunk: 0,
   shots: [],            // cannonball animations
+  trader: null,         // visiting merchant ship (better prices while docked)
+  traderT: 150,         // countdown to the next visit
+  priceDrift: {},       // per-good market pressure from player trades
+  expedition: null,     // { t, dur, bonus } while a ship is at sea
+  expeditionsDone: 0,
+  expBonus: false,      // sea charts: next voyage swift & rich
+  achievements: {},     // id -> floor(G.time) when earned
+  achT: 0,
+  spiceMade: 0,         // total spice harvested (achievement)
 };
 
-const Hooks = { toast: null, sfx: null, onChange: null }; // wired up by UI
+const Hooks = { toast: null, sfx: null, onChange: null, fx: null }; // wired up by UI
 
 function idx(x, y) { return y * MAPW + x; }
 function inBounds(x, y) { return x >= 0 && y >= 0 && x < MAPW && y < MAPH; }
@@ -50,8 +59,10 @@ function tileAt(x, y) { return inBounds(x, y) ? G.tiles[idx(x, y)] : TILE.DEEP; 
 function isWaterTile(t) { return t === TILE.DEEP || t === TILE.WATER; }
 function isLandTile(t) { return t === TILE.SAND || t === TILE.GRASS || t === TILE.TREE || t === TILE.ROCK; }
 
-function toast(msg, big) { if (Hooks.toast) Hooks.toast(msg, big); }
-function sfx(name) { if (Hooks.sfx) Hooks.sfx(name); }
+function toast(msg, big, kind) { if (Hooks.toast) Hooks.toast(msg, big, kind); }
+function sfx(name, x, y) { if (Hooks.sfx) Hooks.sfx(name, x, y); }
+// world-space particle/juice effects (dust, crumble, spark, splash, float, shake…)
+function fx(kind, x, y, data) { if (Hooks.fx) Hooks.fx(kind, x, y, data); }
 
 function storageCap() {
   let cap = STORAGE_BASE;
@@ -78,7 +89,11 @@ function popOf(tier) {
   return n;
 }
 
-function totalPop() { return popOf(0) + popOf(1) + popOf(2); }
+function totalPop() {
+  let n = 0;
+  for (let t = 0; t < TIERS.length; t++) n += popOf(t);
+  return n;
+}
 
 function canAfford(cost) {
   for (const k in cost) if ((G.stock[k] || 0) < cost[k]) return false;
@@ -168,7 +183,7 @@ function canPlace(key, x, y, ignoreCost) {
     const isl = islandAt(x, y);
     const fert = isl ? G.fertility[isl] : null;
     if (fert && !fert[key]) {
-      const what = { sheep: 'raise sheep', grain: 'grow grain', potato: 'grow potatoes' }[key];
+      const what = { sheep: 'raise sheep', grain: 'grow grain', potato: 'grow potatoes', spice: 'grow spice' }[key];
       return { ok: false, why: `This island cannot ${what} — found a colony on another island` };
     }
   }
@@ -223,7 +238,8 @@ function placeBuilding(key, x, y, free) {
   for (const [tx, ty] of footprintTiles(x, y, def.size)) G.grid[idx(tx, ty)] = b;
   G.buildings.push(b);
   recomputeAll();
-  sfx('place');
+  sfx('place', x, y);
+  fx('dust', x + def.size / 2, y + def.size / 2);
   return { ok: true, b };
 }
 
@@ -264,6 +280,7 @@ function demolishAt(x, y) {
 
 function removeBuilding(b, refund = true) {
   const def = BUILDINGS[b.key];
+  fx('crumble', b.x + def.size / 2, b.y + def.size / 2);
   for (const [tx, ty] of footprintTiles(b.x, b.y, def.size)) G.grid[idx(tx, ty)] = null;
   G.buildings = G.buildings.filter(o => o !== b);
   if (G.selected === b.id) G.selected = null;
@@ -399,6 +416,8 @@ function simTick(dt) {
       if (b.progress >= def.buildTime) {
         b.done = true;
         b.status = 'ok';
+        b.bornT = G.time; // completion "pop" animation
+        fx('complete', b.x + def.size / 2, b.y + def.size / 2);
         recomputeAll();
       } else {
         b.status = 'build';
@@ -418,18 +437,26 @@ function simTick(dt) {
   tickRates(dt);
   tickEvents(dt);
   tickPirate(dt);
+  tickTrader(dt);
+  tickExpedition(dt);
   tickShots(dt);
   tickPopHist(dt);
   if (typeof AI !== 'undefined') AI.tick(dt);
   checkUnlocks();
   checkQuests();
+
+  G.achT += dt;
+  if (G.achT >= 1) {
+    G.achT = 0;
+    checkAchievements();
+  }
 }
 
 function tickPopHist(dt) {
   G.popHistT += dt;
   if (G.popHistT < 5) return;
   G.popHistT = 0;
-  G.popHist.push([Math.floor(G.time), popOf(0), popOf(1), popOf(2)]);
+  G.popHist.push([Math.floor(G.time), popOf(0), popOf(1), popOf(2), popOf(3)]);
   while (G.popHist.length > 400) G.popHist.shift();
 }
 
@@ -465,7 +492,7 @@ const EVENTS = [
       const d2 = (h.x - h0.x) ** 2 + (h.y - h0.y) ** 2;
       if (h === h0 || (d2 <= 36 && infected < 3)) { sicken(h); infected++; }
     }
-    toast('🤒 Plague breaks out! ' + infected + ' household(s) fall ill — chapels speed recovery', true);
+    toast('🤒 Plague breaks out! ' + infected + ' household(s) fall ill — chapels speed recovery', true, 'danger');
     sfx('error');
   } },
 ];
@@ -492,8 +519,9 @@ const FIRE_MAX = 12; // seconds until a building burns down
 function ignite(b) {
   if (b.fire != null || !b.done || isBase(b)) return;
   b.fire = FIRE_MAX;
-  toast(`🔥 Fire at the ${BUILDINGS[b.key].name}!`, true);
-  sfx('error');
+  toast(`🔥 Fire at the ${BUILDINGS[b.key].name}!`, true, 'danger');
+  sfx('error', b.x, b.y);
+  fx('spark', b.x + 0.5, b.y + 0.5);
 }
 
 function fireCovered(b) {
@@ -512,13 +540,14 @@ function tickFire(b, dt) {
     b.fire += dt * 3; // the brigade beats the flames back
     if (b.fire >= FIRE_MAX) {
       b.fire = null;
-      toast(`🚒 The brigade saved the ${BUILDINGS[b.key].name}!`);
+      toast(`🚒 The brigade saved the ${BUILDINGS[b.key].name}!`, false, 'good');
+      award('firefighter');
     }
   } else {
     b.fire -= dt;
     if (b.fire <= 0) {
-      toast(`🔥 The ${BUILDINGS[b.key].name} burned to the ground!`, true);
-      sfx('demolish');
+      toast(`🔥 The ${BUILDINGS[b.key].name} burned to the ground!`, true, 'danger');
+      sfx('demolish', b.x, b.y);
       removeBuilding(b, false);
     }
   }
@@ -640,7 +669,8 @@ function doRaid(p) {
     G.stock[g] -= amt;
     stolen.push(`−${amt} ${RES_META[g].icon}`);
   }
-  toast('🏴‍☠️ Pirates raided your stores! ' + (stolen.join('  ') || 'They found little.'), true);
+  toast('🏴‍☠️ Pirates raided your stores! ' + (stolen.join('  ') || 'They found little.'), true, 'danger');
+  fx('shake', p.x, p.y, { amp: 6 });
   if (Math.random() < 0.5) { // and sometimes they torch something
     const near = G.buildings.filter(b => b.done && b.fire == null && !isBase(b) &&
       (b.x - p.x) ** 2 + (b.y - p.y) ** 2 < 100);
@@ -657,8 +687,10 @@ function hitPirate(dmg) {
     p.timer = 2.5;
     G.pirateSunk++;
     G.stock.gold += 150;
-    toast('💥 Pirate ship sunk! Salvage: +150 🪙', true);
+    toast('💥 Pirate ship sunk! Salvage: +150 🪙', true, 'good');
     sfx('unlock');
+    fx('splash', p.x, p.y);
+    fx('float', p.x, p.y, { txt: '+150 🪙', col: '#ffd75e' });
   }
 }
 
@@ -674,7 +706,9 @@ function tickTower(b, dt) {
   b.t = 0;
   G.shots.push({ x0: b.x, y0: b.y, x1: p.x, y1: p.y, t: 0 });
   hitPirate(12);
-  sfx('cannon');
+  sfx('cannon', b.x, b.y);
+  fx('spark', p.x, p.y);
+  fx('shake', b.x, b.y, { amp: 2 });
 }
 
 function tickShots(dt) {
@@ -696,8 +730,10 @@ function checkQuests() {
     parts.push(`+${q.reward[k]} ${RES_META[k].icon}`);
   }
   G.quest++;
-  sfx('upgrade');
-  toast(`📜 Quest complete! ${parts.join(' ')}`, true);
+  sfx('bell');
+  toast(`📜 Quest complete! ${parts.join(' ')}`, true, 'good');
+  const wh = G.buildings.find(b => b.key === 'warehouse');
+  if (wh) fx('float', wh.x + 1, wh.y + 1, { txt: parts.join(' '), col: '#ffd75e' });
 }
 
 /* Rolling ~60s window of stock snapshots → net production rate per good. */
@@ -710,6 +746,13 @@ function tickRates(dt) {
   snap.s.gold = G.stock.gold;
   G.rateHist.push(snap);
   while (G.rateHist.length > 75) G.rateHist.shift();
+
+  // market pressure from player trades relaxes back to base prices
+  for (const g in G.priceDrift) {
+    const d = G.priceDrift[g];
+    if (d > 0) G.priceDrift[g] = Math.max(0, d - 0.01);
+    else if (d < 0) G.priceDrift[g] = Math.min(0, d + 0.01);
+  }
 }
 
 function ratePerMin(good) {
@@ -740,6 +783,7 @@ function tickProduction(b, def, dt, cap) {
       for (const k in def.prod.in) G.stock[k] -= def.prod.in[k];
     }
     G.stock[def.prod.out] = Math.min(cap, G.stock[def.prod.out] + def.prod.n);
+    if (def.prod.out === 'spice') G.spiceMade = (G.spiceMade || 0) + def.prod.n;
     b.t = 0;
     spawnCarrier(b, def.prod.out);
   }
@@ -757,7 +801,10 @@ function tickHouse(h, dt) {
       h.sickT = 0;
       if (h.res > 2) h.res--;
     }
-    if (h.sick <= 0) h.sick = null;
+    if (h.sick <= 0) {
+      h.sick = null;
+      award('survivor');
+    }
     h.status = 'sick';
     return;
   }
@@ -821,8 +868,33 @@ function tryUpgrade(h, tier) {
   h.tier++;
   for (const k in h.sat) delete h.sat[k];
   for (const k in h.acc) delete h.acc[k];
-  sfx('upgrade');
-  toast(`A house advanced to ${next.name}! ${BUILDINGS.house.icon}`);
+  sfx('upgrade', h.x, h.y);
+  fx('complete', h.x + 0.5, h.y + 0.5);
+  fx('float', h.x + 0.5, h.y + 0.5, { txt: `⬆ ${next.name}!`, col: '#8ad06c' });
+  toast(`A house advanced to ${next.name}! ${BUILDINGS.house.icon}`, false, 'good');
+}
+
+/* Why is this house not upgrading? Returns a human-readable reason, or
+ * null when the house is at the top tier / about to upgrade. */
+function whyNoUpgrade(h) {
+  const tier = TIERS[h.tier];
+  if (!tier.upgrade) return null;
+  if (h.tier + 1 >= G.unlocked) {
+    const u = UNLOCKS[h.tier + 1];
+    return u ? `Locked — reach ${u.count} ${u.label}` : 'Locked';
+  }
+  for (const good in tier.goods) { // upgrades only fire while fully satisfied
+    if (h.sat[good] === false) return `Needs are not met (${RES_META[good].name})`;
+  }
+  const next = TIERS[h.tier + 1];
+  for (const s of next.services) {
+    if (!h.svc[s]) return `Missing: ${SERVICE_NAMES[s]} coverage`;
+  }
+  if (h.res < tier.resMax) return `Not full yet (${h.res}/${tier.resMax})`;
+  const need = tier.upgrade.needsGood;
+  if ((G.stock[need] || 0) < 1) return `Needs 1 ${RES_META[need].name} in stock`;
+  if (!canAfford(tier.upgrade.cost)) return 'Cannot afford the upgrade cost yet';
+  return null;
 }
 
 function checkUnlocks() {
@@ -839,7 +911,24 @@ function checkUnlocks() {
   if (!G.flourished && popOf(2) >= 60) {
     G.flourished = true;
     sfx('unlock');
-    toast('👑 Your island flourishes! The Queen sends her regards.', true);
+    toast('👑 Your island flourishes! The Queen sends her regards.', true, 'good');
+  }
+}
+
+/* ---------------- achievements ---------------- */
+
+function award(id) {
+  if (G.achievements[id] != null) return;
+  const a = ACHIEVEMENTS.find(o => o.id === id);
+  if (!a) return;
+  G.achievements[id] = Math.floor(G.time);
+  sfx('unlock');
+  toast(`🏆 Achievement: ${a.name} — ${a.desc}`, true, 'good');
+}
+
+function checkAchievements() {
+  for (const a of ACHIEVEMENTS) {
+    if (a.check && G.achievements[a.id] == null && a.check()) award(a.id);
   }
 }
 
@@ -1000,13 +1089,31 @@ function tickWalkers(dt) {
 
 /* ---------------- trade ---------------- */
 
+/* Current market prices: base price shifted by supply/demand pressure the
+ * player creates. Buying pushes prices up, selling pushes them down; the
+ * drift relaxes back to zero in tickRates. */
+function priceOf(good) {
+  const d = (G.priceDrift && G.priceDrift[good]) || 0;
+  return {
+    buy: Math.max(1, Math.round(TRADE[good].buy * (1 + d))),
+    sell: Math.max(1, Math.round(TRADE[good].sell * (1 + d))),
+    drift: d,
+  };
+}
+
+function nudgePrice(good, delta) {
+  const d = ((G.priceDrift[good] || 0) + delta);
+  G.priceDrift[good] = Math.max(-0.35, Math.min(0.35, d));
+}
+
 function buyGood(good, n) {
-  const price = TRADE[good].buy * n;
+  const price = priceOf(good).buy * n;
   const cap = storageCap();
   if (G.stock.gold < price) { sfx('error'); return false; }
   if (G.stock[good] + n > cap) { toast('Storage is full!'); sfx('error'); return false; }
   G.stock.gold -= price;
   G.stock[good] += n;
+  nudgePrice(good, 0.004 * n);
   sfx('coin');
   return true;
 }
@@ -1014,9 +1121,193 @@ function buyGood(good, n) {
 function sellGood(good, n) {
   if (G.stock[good] < n) { sfx('error'); return false; }
   G.stock[good] -= n;
-  G.stock.gold += TRADE[good].sell * n;
+  G.stock.gold += priceOf(good).sell * n;
+  nudgePrice(good, -0.004 * n);
   sfx('coin');
   return true;
+}
+
+/* ---------------- visiting merchant ship ---------------- */
+
+/* While the merchant is docked her deals beat the market: she sells below
+ * the base buy price and pays a premium over the base sell price. */
+function makeDeals() {
+  const cap = storageCap();
+  const deals = [];
+  const pool = GOODS.slice();
+  for (let k = 0; k < 3 && pool.length; k++) {
+    // prefer goods the player lacks (offer to sell) or hoards (offer to buy)
+    let best = 0;
+    for (let i = 1; i < pool.length; i++) {
+      const si = G.stock[pool[i]] || 0, sb = G.stock[pool[best]] || 0;
+      const wi = si < 10 || si > cap * 0.5 ? 1 : 0;
+      const wb = sb < 10 || sb > cap * 0.5 ? 1 : 0;
+      if (wi > wb || (wi === wb && Math.random() < 0.5)) best = i;
+    }
+    const g = pool.splice(best, 1)[0];
+    const mode = (G.stock[g] || 0) < 10 ? 'buy' : 'sell'; // from the player's side
+    const price = mode === 'buy'
+      ? Math.max(1, Math.round(TRADE[g].buy * 0.7))
+      : Math.round(TRADE[g].sell * 1.4);
+    deals.push({ good: g, mode, left: 20, price });
+  }
+  return deals;
+}
+
+function spawnTrader() {
+  const wh = G.buildings.find(b => b.key === 'warehouse');
+  if (!wh) return;
+  // anchor: the shore-water tile closest to the warehouse
+  let target = null, bestD = Infinity;
+  for (let ty = wh.y - 10; ty <= wh.y + 10; ty++) {
+    for (let tx = wh.x - 10; tx <= wh.x + 10; tx++) {
+      if (!inBounds(tx, ty)) continue;
+      const i = idx(tx, ty);
+      if (isWaterTile(G.tiles[i]) && G.shore[i]) {
+        const d = (tx - wh.x) ** 2 + (ty - wh.y) ** 2;
+        if (d < bestD) { bestD = d; target = i; }
+      }
+    }
+  }
+  if (target == null) return;
+  const path = waterPath(target, i => {
+    const x = i % MAPW, y = (i - x) / MAPW;
+    return x === 0 || y === 0 || x === MAPW - 1 || y === MAPH - 1;
+  });
+  if (!path || path.length < 3) return;
+  G.trader = {
+    path, seg: 0, prog: 0,
+    x: path[0][0], y: path[0][1],
+    state: 'approach', timer: 0, deals: makeDeals(),
+  };
+  toast('⛵ A merchant ship approaches your harbour!');
+}
+
+function tickTrader(dt) {
+  if (!G.trader) {
+    if (totalPop() < 15) return;
+    G.traderT -= dt;
+    if (G.traderT <= 0) {
+      G.traderT = 150 + Math.random() * 90;
+      spawnTrader();
+    }
+    return;
+  }
+  const t = G.trader;
+  if (t.state === 'docked') {
+    t.timer -= dt;
+    if (t.timer <= 0) {
+      t.state = 'leave';
+      t.path = t.path.slice().reverse();
+      t.seg = 0; t.prog = 0;
+      toast('⛵ The merchant ship sets sail again.');
+    }
+    return;
+  }
+  t.prog += dt * 2.4;
+  while (t.prog >= 1 && t.seg < t.path.length - 1) { t.prog -= 1; t.seg++; }
+  if (t.seg >= t.path.length - 1) {
+    if (t.state === 'approach') {
+      t.state = 'docked';
+      t.timer = 45;
+      sfx('bell');
+      toast('⚓ A merchant ship has docked! Special offers — press T', true, 'good');
+    } else {
+      G.trader = null;
+    }
+    return;
+  }
+  const a = t.path[t.seg], n = t.path[Math.min(t.seg + 1, t.path.length - 1)];
+  t.x = a[0] + (n[0] - a[0]) * t.prog;
+  t.y = a[1] + (n[1] - a[1]) * t.prog;
+}
+
+/* Trade against a docked merchant's deal instead of the open market. */
+function dealTrade(i, n) {
+  const t = G.trader;
+  if (!t || t.state !== 'docked' || !t.deals[i]) { sfx('error'); return false; }
+  const d = t.deals[i];
+  n = Math.min(n, d.left);
+  if (n <= 0) { sfx('error'); return false; }
+  if (d.mode === 'buy') { // player buys from her
+    const price = d.price * n;
+    if (G.stock.gold < price) { sfx('error'); return false; }
+    if (G.stock[d.good] + n > storageCap()) { toast('Storage is full!'); sfx('error'); return false; }
+    G.stock.gold -= price;
+    G.stock[d.good] += n;
+  } else { // player sells to her
+    if (G.stock[d.good] < n) { sfx('error'); return false; }
+    G.stock[d.good] -= n;
+    G.stock.gold += d.price * n;
+  }
+  d.left -= n;
+  sfx('coin');
+  return true;
+}
+
+/* ---------------- naval expeditions ---------------- */
+
+function homeIslandId() {
+  const wh = G.buildings.find(b => b.key === 'warehouse');
+  return wh ? islandAt(wh.x, wh.y) : 0;
+}
+
+function startExpedition() {
+  if (G.expedition) return { ok: false, why: 'A ship is already at sea' };
+  if (!canAfford(EXPEDITION_COST)) return { ok: false, why: 'Cannot afford to outfit the ship' };
+  payCost(EXPEDITION_COST);
+  let dur = EXPEDITION_TIME[0] + Math.random() * (EXPEDITION_TIME[1] - EXPEDITION_TIME[0]);
+  const bonus = G.expBonus;
+  if (bonus) dur *= 0.5;
+  G.expBonus = false;
+  G.expedition = { t: 0, dur, bonus };
+  sfx('bell');
+  toast('⛵ An expedition sets sail! May the winds be kind.', true);
+  return { ok: true };
+}
+
+function tickExpedition(dt) {
+  const e = G.expedition;
+  if (!e) return;
+  e.t += dt;
+  if (e.t < e.dur) return;
+  G.expedition = null;
+  G.expeditionsDone = (G.expeditionsDone || 0) + 1;
+  resolveExpedition(e);
+}
+
+function resolveExpedition(e) {
+  const cap = storageCap();
+  const mul = e.bonus ? 1.5 : 1;
+  const roll = Math.random();
+  if (roll < 0.35) {
+    const g = GOODS[Math.floor(Math.random() * GOODS.length)];
+    const amt = Math.round((25 + Math.floor(Math.random() * 35)) * mul);
+    G.stock[g] = Math.min(cap, (G.stock[g] || 0) + amt);
+    toast(`⛵ The expedition returns with a rich haul: +${amt} ${RES_META[g].icon}`, true, 'good');
+  } else if (roll < 0.6) {
+    const amt = Math.round((250 + Math.floor(Math.random() * 300)) * mul);
+    G.stock.gold += amt;
+    toast(`⛵ The expedition salvaged sunken treasure: +${amt} 🪙`, true, 'good');
+  } else if (roll < 0.75) {
+    G.expBonus = true;
+    toast('⛵ The expedition charted new waters — the next voyage will be swift and rich!', true, 'good');
+  } else if (roll < 0.9) {
+    // exotic seeds: enable a missing crop on the home island (never spice)
+    const f = G.fertility[homeIslandId()];
+    const missing = f ? FERTILITY_CROPS.filter(c => c !== 'spice' && !f[c]) : [];
+    if (missing.length) {
+      const c = missing[Math.floor(Math.random() * missing.length)];
+      f[c] = true;
+      toast(`⛵ The expedition brings exotic seeds — your island can now support a ${BUILDINGS[c].name}!`, true, 'good');
+    } else {
+      G.stock.gold += Math.round(200 * mul);
+      toast('⛵ The expedition returns with a modest bounty: +200 🪙', true, 'good');
+    }
+  } else {
+    toast('⛵ The expedition returns empty-handed, with wild tales of sea monsters…', true);
+  }
+  sfx('coin');
 }
 
 /* ---------------- new game / save / load ---------------- */
@@ -1032,7 +1323,7 @@ function newGame(seed) {
   G.zone = new Uint8Array(MAPW * MAPH);
   G.buildings = [];
   G.nextId = 1;
-  G.stock = { gold: 2500, wood: 40, tools: 20, iron: 0, food: 30, grain: 0, wool: 0, cloth: 0, potato: 0, liquor: 0 };
+  G.stock = { gold: 2500, wood: 40, tools: 20, iron: 0, food: 30, grain: 0, wool: 0, cloth: 0, potato: 0, liquor: 0, spice: 0 };
   G.time = 0;
   G.speed = 1;
   G.paused = false;
@@ -1057,6 +1348,16 @@ function newGame(seed) {
   G.pirateSeen = false;
   G.pirateSunk = 0;
   G.shots = [];
+
+  G.trader = null;
+  G.traderT = 150 + Math.random() * 90;
+  G.priceDrift = {};
+  G.expedition = null;
+  G.expeditionsDone = 0;
+  G.expBonus = false;
+  G.achievements = {};
+  G.achT = 0;
+  G.spiceMade = 0;
 
   const spot = findWarehouseSpot(G.tiles);
   // warehouse placement bypasses zone (zone radiates FROM it)
@@ -1083,6 +1384,12 @@ function saveGame() {
       fertility: G.fertility,
       pirateSeen: G.pirateSeen,
       pirateSunk: G.pirateSunk,
+      priceDrift: G.priceDrift,
+      expedition: G.expedition,
+      expeditionsDone: G.expeditionsDone,
+      expBonus: G.expBonus,
+      achievements: G.achievements,
+      spiceMade: G.spiceMade,
       stock: G.stock,
       tiles: Array.from(G.tiles),
       roads: Array.from(G.roads),
@@ -1141,12 +1448,32 @@ function loadGame() {
   G.pirateSeen = !!data.pirateSeen;
   G.pirateSunk = data.pirateSunk || 0;
   G.shots = [];
+  G.trader = null;
+  G.traderT = 150 + Math.random() * 90;
+  G.priceDrift = data.priceDrift || {};
+  G.expedition = (data.expedition && data.expedition.dur) ? { t: data.expedition.t || 0, dur: data.expedition.dur, bonus: !!data.expedition.bonus } : null;
+  G.expeditionsDone = data.expeditionsDone || 0;
+  G.expBonus = !!data.expBonus;
+  G.achievements = data.achievements || {};
+  G.achT = 0;
+  G.spiceMade = data.spiceMade || 0;
+  // home island id straight from the saved buildings (G.buildings is rebuilt later)
+  const whSaved = data.buildings.find(s => s.key === 'warehouse');
+  const homeId = whSaved ? G.islands.ids[idx(whSaved.x, whSaved.y)] : 0;
   if (data.fertility) {
     G.fertility = data.fertility;
   } else { // legacy save: everything grows everywhere
     G.fertility = {};
     for (let id = 1; id <= G.islands.count; id++) {
       G.fertility[id] = { sheep: true, grain: true, potato: true };
+    }
+  }
+  // pre-spice saves have no spice key → derive it from the seed so the
+  // Merchants tier stays reachable (never on the home island)
+  if (!Object.values(G.fertility).some(f => f && f.spice)) {
+    const fresh = assignFertility(G.islands, homeId, G.seed);
+    for (let id = 1; id <= G.islands.count; id++) {
+      if (G.fertility[id]) G.fertility[id].spice = !!(fresh[id] && fresh[id].spice);
     }
   }
 

@@ -115,11 +115,31 @@
   near('fisher');
   near('hunter');
   for (let i = 0; i < 8; i++) near('house');
-  G.unlocked = 3;
+  G.unlocked = 4;
   near('sheep'); near('weaver'); near('tavern'); near('grain'); near('bakery');
+  // visual-test shim: let spice grow at home so the garden is in frame
+  G.fertility[islandAt(wh.x, wh.y)].spice = true;
+  near('spice');
 
   G.stock.food = 290; G.stock.gold = 5000;
   for (let i = 0; i < 1200; i++) simTick(0.5); // 10 minutes
+
+  // show off the merchant townhouse tier
+  const hs = G.buildings.filter(b => b.key === 'house' && b.done);
+  if (hs[0]) { hs[0].tier = 3; hs[0].res = 20; }
+  if (hs[1]) { hs[1].tier = 2; hs[1].res = 15; }
+
+  // a docked merchant ship + an expedition leaving harbour
+  G.traderT = 0.01;
+  for (let i = 0; i < 500 && (!G.trader || G.trader.state === 'approach'); i++) simTick(0.5);
+  G.stock.gold = 5000; G.stock.food = 200; G.stock.wood = 100; G.stock.tools = 50;
+  startExpedition();
+
+  if (location.hash === '#night') {
+    G.time = Math.floor(G.time / DAY_LENGTH + 1) * DAY_LENGTH + 0.86 * DAY_LENGTH;
+  } else if (location.hash === '#storm') {
+    G.stormT = 300;
+  }
 
   Render.rebuildGroundCache();
   Render.centerOn(wh.x + 1, wh.y + 1);

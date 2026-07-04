@@ -16,6 +16,10 @@ const AI = (() => {
     'watchtower', 'firehouse'];
   const ACTIONS = ['wait', ...BUILD_ACTIONS.map(k => 'build:' + k), 'sell', 'buytools', 'buyfood'];
 
+  // Frozen feature space: the net was trained before spice/Merchants existed.
+  // New goods must NOT change the feature vector or the weights go stale.
+  const AI_GOODS = GOODS.slice(0, 9);
+
   let net = null;
   function getNet() {
     if (!net && typeof AI_WEIGHTS !== 'undefined') net = NN.fromJSON(AI_WEIGHTS);
@@ -49,13 +53,13 @@ const AI = (() => {
   function features() {
     const f = [];
     const cap = storageCap();
-    for (const g of GOODS) f.push(clamp((G.stock[g] || 0) / cap, 0, 1));        // 9
-    for (const g of GOODS) f.push(clamp(ratePerMin(g) / 20, -1, 1));            // 9
+    for (const g of AI_GOODS) f.push(clamp((G.stock[g] || 0) / cap, 0, 1));     // 9
+    for (const g of AI_GOODS) f.push(clamp(ratePerMin(g) / 20, -1, 1));         // 9
     f.push(clamp(Math.log10(1 + Math.max(0, G.stock.gold)) / 4, 0, 1.5));       // 1
     f.push(popOf(0) / 100, popOf(1) / 100, popOf(2) / 100);                     // 3
     const hs = houseStats();
     f.push(hs.capr ? hs.res / hs.capr : 0);                                     // 1
-    f.push(G.unlocked / 3);                                                     // 1
+    f.push(Math.min(1, G.unlocked / 3)); // saturate: tier 4 postdates training // 1
     for (const k of BUILD_ACTIONS) f.push(clamp(countOf(k) / 10, 0, 1));        // 16
     f.push(hs.houses ? hs.mkMiss / hs.houses : 1,
            hs.houses ? hs.faMiss / hs.houses : 1,
@@ -71,7 +75,7 @@ const AI = (() => {
     f.push(G.stock.tools < 3 ? 1 : 0);
     f.push(G.stock.gold < 120 ? 1 : 0);
     f.push(G.stock.food < 25 ? 1 : 0);
-    f.push(GOODS.some(g => (G.stock[g] || 0) >= storageCap() * 0.95) ? 1 : 0);
+    f.push(AI_GOODS.some(g => (G.stock[g] || 0) >= storageCap() * 0.95) ? 1 : 0);
     f.push(clamp((countOf('sheep') - countOf('weaver')) / 3, -1, 1));
     f.push(clamp((countOf('grain') - countOf('bakery')) / 3, -1, 1));
     f.push(clamp((countOf('potato') - countOf('distillery')) / 3, -1, 1));
@@ -205,7 +209,7 @@ const AI = (() => {
   function surplusGood() {
     let best = null;
     for (const g of GOODS) {
-      if (g === 'tools') continue;
+      if (g === 'tools' || g === 'spice') continue; // spice is the Merchants' upgrade good — never dump it
       const r = ratePerMin(g);
       const stock = G.stock[g] || 0;
       if ((r > 2 && stock > 60) || stock > storageCap() * 0.92) {

@@ -23,12 +23,37 @@ small stock of wood, tools and food.
    - **Settlers** need cloth (🐑 Sheep Farm → 🧵 Weaver) and a Chapel. At 30
      settlers, **Citizens** unlock.
    - **Citizens** need liquor (🥔 Potato Farm → 🥃 Distillery) and a Tavern.
+   - **⚜️ Merchants** demand 🌶️ **spice** — and spice *never grows on your home
+     island*. Found a colony, plant a Spice Garden, and the top tier is yours.
 5. Full houses **upgrade automatically** when the next tier is unlocked, its services
-   are covered, and the upgrade good (cloth / liquor) is in stock.
+   are covered, and the upgrade good (cloth / liquor / spice) is in stock — hover a
+   house to see exactly what is holding it back.
 6. **Tools** come from the trader (🚢) early on; later build an ⛏️ Iron Mine (against
    a mountain) + 🔨 Toolmaker. Feed big towns with 🌾 Grain Farms → 🥖 Bakeries.
 7. Follow the **📜 quest line** in the goal bar — each quest pays a reward.
-8. Reach **60 Citizens** to make your island flourish. 👑
+8. Reach **60 Citizens** to make your island flourish 👑 — then house 25 Merchants
+   to earn the **Imperial Charter**.
+
+## ⚖️ Trade with a pulse
+
+Prices **drift with your own trading**: dump 50 cloth and the price crashes for a
+few minutes; buy tools in bulk and they get dearer. Watch for the **merchant
+ship** — she sails in every few minutes, docks by your Warehouse, and offers
+three limited deals (30% off, or a 40% premium on what she wants) for 45 seconds.
+
+## ⛵ Expeditions
+
+Outfit a ship (300 🪙, 20 🐟, 10 🪵, 5 🔨) and send it beyond the map's edge. Two
+to three minutes later it returns with a random fortune: a cargo haul, sunken
+treasure, **sea charts** (next voyage swift & rich) — or **exotic seeds** that
+teach your home island a crop it couldn't grow. Sometimes only tales of sea
+monsters.
+
+## 🏆 Achievements
+
+Fourteen milestones — from *Hamlet* to *Metropolis*, *Corsair's Bane* to
+*Spice Trader* — are chronicled under the **Honours** button and persist in
+your save.
 
 ## 🧠 Neural-net intelligence
 
@@ -81,26 +106,36 @@ ships shuttle between your harbours automatically.
 
 ## Living island
 
+- **Day & night**: a full cycle every five minutes. Windows light up at dusk,
+  stars glint on the open sea, fireflies drift through forest glades — and at
+  dawn the butterflies return.
+- **Weather**: storms bring sheeting rain, lightning and thunder, darker clouds
+  and grounded fishers; the wind bends the trees and carries the chimney smoke.
 - **Carriers** haul finished goods along your roads to the Warehouse; **workers**
-  chop, hammer and harvest at their buildings; **villagers** stroll the streets.
-- **Trend arrows** in the top bar (and tooltips) show the net production rate of
-  every good — green ▴ surplus, red ▾ deficit. The trade window shows the same.
-- **Random events**: rich shoals, driftwood, generous nobles — and storms that keep
-  the fishers ashore for a while.
-- Gulls circle overhead, cloud shadows drift across the island, the trader's ship
-  sails its rounds.
-- Ambient sound: surf rolls softly and gulls cry now and then (toggle with 🔊;
-  starts after your first click — browsers require a gesture for audio).
+  chop, hammer and harvest at their buildings; **villagers** stroll the streets;
+  rowboats bob and fish jump along the shoreline.
+- **Juice**: placement dust, demolition rubble, completion pops, floating
+  rewards, screen shake under cannon fire, and a HUD that flinches when stocks
+  move.
+- **Trend arrows** in the top bar (and rich hover tooltips everywhere) show the
+  net production rate of every good — green ▴ surplus, red ▾ deficit.
+- **Random events**: rich shoals, driftwood, generous nobles — and storms.
+- **Procedural soundtrack** ([js/music.js](js/music.js)): a lookahead scheduler
+  composes lute-and-pad music bar by bar and follows the game's mood — calm by
+  day, sparse at night, muted in storms, driving when pirates close in. Toggle
+  with 🎵. Surf, gulls, rain and positional (stereo-panned) effects round it
+  out; audio starts after your first click — browsers require a gesture.
 
 ## Controls
 
 | Input | Action |
 |---|---|
 | Left-click | Build / select |
-| Left-drag | Pan (no tool) · paint roads/buildings (tool active) |
+| Left-drag | Pan — flick to glide (no tool) · paint roads/buildings (tool active) |
 | Right-click | Cancel tool / deselect |
 | Right-drag | Pan |
-| Mouse wheel | Zoom |
+| Mouse wheel | Smooth zoom |
+| Hover | Rich tooltips on buildings, goods and toolbar |
 | WASD / arrows | Pan |
 | Space | Pause |
 | 1 / 2 / 3 | Game speed |
@@ -118,12 +153,16 @@ The game autosaves to your browser every 30 seconds.
 
 ## Development
 
-- `js/config.js` — all tuning: tiers, needs, buildings, prices
-- `js/map.js` — seeded island generation
+- `js/config.js` — all tuning: tiers, needs, buildings, prices, quests, achievements
+- `js/map.js` — seeded archipelago generation & fertilities
 - `js/game.js` — simulation (no DOM access)
 - `js/sprites.js` / `js/render.js` — procedural art & isometric renderer
-- `js/ui.js` / `js/main.js` — HUD, input, game loop
+  (day/night, weather, particles, wildlife)
+- `js/music.js` — procedural soundtrack
+- `js/ui.js` / `js/main.js` — HUD, tooltips, input, game loop
 
-Headless test suite: `node dev/smoke.js` (boots the game against a stubbed DOM and
-exercises placement, roads, services, growth, production, trade, save/load).
-`dev/visual.html` builds out a town deterministically for visual checks.
+Headless test suite: `node dev/smoke.js` (105 assertions — boots the game against
+a stubbed DOM and exercises placement, roads, services, growth, production, trade,
+price drift, the merchant ship, expeditions, achievements, pirates, fire, plague
+and save/load). `dev/visual.html` builds out a town deterministically for visual
+checks — append `#night` or `#storm` to preview those moods.

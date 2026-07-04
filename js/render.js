@@ -11,6 +11,8 @@ const Render = (() => {
   const mmCtx = mmCanvas.getContext('2d');
 
   const cam = { x: 0, y: 0, zoom: 1 };
+  const camT = { x: 0, y: 0, zoom: 1 };  // glide targets (wheel zoom, fly-to)
+  const camVel = { x: 0, y: 0 };         // flick-pan inertia, px/s
   let mmBase = null;          // minimap terrain cache
   let mmDirty = true;
   let dpr = 1;
@@ -22,6 +24,37 @@ const Render = (() => {
     dpr = window.devicePixelRatio || 1;
     canvas.width = Math.round(canvas.clientWidth * dpr);
     canvas.height = Math.round(canvas.clientHeight * dpr);
+  }
+
+  /* Smoothed camera: wheel zoom and fly-to write camT; drags write both
+   * (instant) and leave a velocity that keeps the map gliding. */
+  function clampCamT() {
+    const w = canvas.clientWidth, h = canvas.clientHeight, z = camT.zoom;
+    camT.x = Math.max(w / 2 - MAPW * TW2 * z, Math.min(w / 2 + MAPH * TW2 * z, camT.x));
+    camT.y = Math.max(h / 2 - (MAPW + MAPH) * TH2 * z, Math.min(h / 2, camT.y));
+  }
+
+  function updateCamera(dt) {
+    if (Math.abs(camVel.x) > 2 || Math.abs(camVel.y) > 2) {
+      camT.x += camVel.x * dt;
+      camT.y += camVel.y * dt;
+      const decay = Math.pow(0.02, dt);
+      camVel.x *= decay; camVel.y *= decay;
+    } else {
+      camVel.x = camVel.y = 0;
+    }
+    clampCamT();
+    const kz = Math.min(1, dt * 14), kp = Math.min(1, dt * 12);
+    cam.zoom += (camT.zoom - cam.zoom) * kz;
+    cam.x += (camT.x - cam.x) * kp;
+    cam.y += (camT.y - cam.y) * kp;
+    if (Math.abs(camT.zoom - cam.zoom) < 0.001) cam.zoom = camT.zoom;
+  }
+
+  function flyTo(tx, ty) {
+    camVel.x = camVel.y = 0;
+    camT.x = canvas.clientWidth / 2 - (tx - ty) * TW2 * camT.zoom;
+    camT.y = canvas.clientHeight / 2 - (tx + ty) * TH2 * camT.zoom;
   }
 
   function screenToTile(mx, my) {
@@ -38,18 +71,233 @@ const Render = (() => {
   function centerOn(tx, ty) {
     cam.x = canvas.clientWidth / 2 - (tx - ty) * TW2 * cam.zoom;
     cam.y = canvas.clientHeight / 2 - (tx + ty) * TH2 * cam.zoom;
+    camT.x = cam.x; camT.y = cam.y; camT.zoom = cam.zoom;
+    camVel.x = camVel.y = 0;
   }
 
   function zoomAt(mx, my, factor) {
-    const before = cam.zoom;
-    cam.zoom = Math.max(0.45, Math.min(2.2, cam.zoom * factor));
-    const k = cam.zoom / before;
-    cam.x = mx - (mx - cam.x) * k;
-    cam.y = my - (my - cam.y) * k;
+    const before = camT.zoom;
+    camT.zoom = Math.max(0.45, Math.min(2.2, camT.zoom * factor));
+    const k = camT.zoom / before;
+    camT.x = mx - (mx - camT.x) * k;
+    camT.y = my - (my - camT.y) * k;
   }
 
-  // Terrain look is baked into tile sprites; this just refreshes the minimap.
-  function rebuildGroundCache() { mmDirty = true; }
+  // Terrain look is baked into tile sprites; refresh the minimap and
+  // re-scan the map for ambient-life spots (fish, glades, star water).
+  function rebuildGroundCache() {
+    mmDirty = true;
+    ambient = null;
+    expCache = null;
+    for (const k in boatSpots) delete boatSpots[k];
+  }
+
+  /* ---------------- day/night cycle ---------------- */
+
+  function smoothstep(a, b, x) {
+    const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  }
+
+  // 0 = day … 1 = deep night. Night covers ~the last quarter of each cycle.
+  function nightFactor(time) {
+    const ph = (time % DAY_LENGTH) / DAY_LENGTH;
+    return smoothstep(0.70, 0.80, ph) * (1 - smoothstep(0.95, 1.0, ph));
+  }
+
+  // warm sunset / sunrise band
+  function duskFactor(time) {
+    const ph = (time % DAY_LENGTH) / DAY_LENGTH;
+    const dusk = smoothstep(0.64, 0.70, ph) * (1 - smoothstep(0.74, 0.80, ph));
+    const dawn = smoothstep(0.93, 0.96, ph) * (1 - smoothstep(0.99, 1.0, ph));
+    return Math.max(dusk, dawn);
+  }
+
+  function seaColor(n) { // noon #0d2a40 → midnight #071527
+    const mix = (a, b) => Math.round(a + (b - a) * n);
+    return `rgb(${mix(13, 7)},${mix(42, 21)},${mix(64, 39)})`;
+  }
+
+  /* ---------------- weather (visuals for G.stormT) ---------------- */
+
+  let stormEase = 0;
+  let windVal = 0.25;
+  let lastDrawT = null;
+  let lastWallT = null;
+  let rain = null;      // preallocated drop pool
+  let flash = 0;        // lightning white-out
+  let lightningT = 5;
+  let onLightning = null;
+
+  function tickWeather(time, dtF, wallDt) {
+    stormEase += ((G.stormT > 0 ? 1 : 0) - stormEase) * Math.min(1, 3 * dtF);
+    if (stormEase < 0.005) stormEase = 0;
+    windVal = 0.25 + 0.2 * Math.sin(time * 0.05) + 0.15 * Math.sin(time * 0.013 + 2) + 0.6 * stormEase;
+    flash *= Math.exp(-8 * wallDt); // wall time: must fade even while paused
+    if (stormEase > 0.5) {
+      lightningT -= dtF;
+      if (lightningT <= 0) {
+        lightningT = 3 + Math.random() * 5;
+        flash = 1;
+        if (onLightning) onLightning();
+      }
+    }
+  }
+
+  function drawWeather() { // screen space, device pixels
+    if (stormEase <= 0 && flash < 0.01) return;
+    const w = canvas.width, h = canvas.height;
+    if (stormEase > 0) {
+      ctx.fillStyle = `rgba(22,30,50,${(0.34 * stormEase).toFixed(3)})`;
+      ctx.fillRect(0, 0, w, h);
+      if (!rain) {
+        rain = [];
+        for (let i = 0; i < 220; i++) {
+          rain.push({ x: Math.random(), y: Math.random(), spd: 0.8 + Math.random() * 0.4 });
+        }
+      }
+      ctx.strokeStyle = `rgba(195,220,255,${(0.45 * stormEase).toFixed(3)})`;
+      ctx.lineWidth = dpr;
+      ctx.beginPath();
+      const slant = (3 + windVal * 8) * dpr;
+      for (const d of rain) {
+        const dx = d.x * w, dy = d.y * h;
+        ctx.moveTo(dx, dy);
+        ctx.lineTo(dx - slant, dy + 15 * dpr);
+      }
+      ctx.stroke();
+    }
+    if (flash > 0.01) {
+      ctx.fillStyle = `rgba(240,245,255,${(0.4 * flash).toFixed(3)})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+
+  function advanceRain(dtF) {
+    if (!rain || stormEase <= 0) return;
+    for (const d of rain) {
+      d.y += d.spd * dtF * 1.1;
+      d.x -= windVal * 0.12 * dtF;
+      if (d.y > 1) { d.y -= 1; d.x = Math.random(); }
+      if (d.x < 0) d.x += 1;
+    }
+  }
+
+  /* ---------------- particles, floating text, screen shake ---------------- */
+
+  const parts = [];
+  const floats = [];
+  let shakeAmp = 0;
+
+  const FX_SPECS = {
+    dust:     { n: 12, cols: ['#c9b28a', '#b9a078'], spd: 40, up: 50, grav: 90, life: 0.7, size: 2.4 },
+    crumble:  { n: 16, cols: ['#8a7a66', '#6d5f4e', '#a4937c'], spd: 55, up: 70, grav: 170, life: 0.8, size: 2.6 },
+    spark:    { n: 10, cols: ['#ffd75e', '#ff9a3c'], spd: 85, up: 30, grav: 60, life: 0.45, size: 1.8, add: true },
+    splash:   { n: 14, cols: ['#bfe0f2', '#8fc4e2'], spd: 60, up: 90, grav: 230, life: 0.7, size: 1.8 },
+    complete: { n: 10, cols: ['#fff3c8', '#ffd75e'], spd: 55, up: 60, grav: 40, life: 0.6, size: 2, add: true },
+  };
+
+  function fxBurst(kind, x, y, data) {
+    if (kind === 'shake') { shakeAmp = Math.min(10, shakeAmp + ((data && data.amp) || 3)); return; }
+    const wx = (x - y) * TW2, wy = (x + y) * TH2;
+    if (kind === 'float') {
+      floats.push({ wx, wy: wy - 26, txt: data && data.txt || '', col: (data && data.col) || '#ffd75e', t: 0 });
+      return;
+    }
+    const spec = FX_SPECS[kind];
+    if (!spec) return;
+    for (let i = 0; i < spec.n; i++) {
+      if (parts.length >= 220) parts.shift();
+      const a = Math.random() * Math.PI * 2;
+      parts.push({
+        x: wx + Math.cos(a) * 7, y: wy + Math.sin(a) * 3.5,
+        vx: Math.cos(a) * spec.spd * (0.4 + Math.random() * 0.6),
+        vy: -spec.up * (0.4 + Math.random() * 0.8),
+        grav: spec.grav, t: 0, life: spec.life * (0.7 + Math.random() * 0.5),
+        col: spec.cols[i % spec.cols.length],
+        size: spec.size * (0.7 + Math.random() * 0.6),
+        add: !!spec.add,
+      });
+    }
+  }
+
+  function drawParticles(dtF) { // world space
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      p.t += dtF;
+      if (p.t >= p.life) { parts.splice(i, 1); continue; }
+      p.x += p.vx * dtF;
+      p.y += p.vy * dtF;
+      p.vy += p.grav * dtF;
+      const a = 1 - p.t / p.life;
+      ctx.globalAlpha = a;
+      if (p.add) ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = p.col;
+      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size * 0.8);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawFloats(dtF) { // world space
+    for (let i = floats.length - 1; i >= 0; i--) {
+      const f = floats[i];
+      f.t += dtF;
+      if (f.t >= 1.7) { floats.splice(i, 1); continue; }
+      const a = f.t < 1.2 ? 1 : 1 - (f.t - 1.2) / 0.5;
+      ctx.globalAlpha = a;
+      ctx.font = 'bold 13px Georgia, serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const y = f.wy - f.t * 22;
+      ctx.strokeStyle = 'rgba(30,20,8,0.8)';
+      ctx.lineWidth = 3;
+      ctx.strokeText(f.txt, f.wx, y);
+      ctx.fillStyle = f.col;
+      ctx.fillText(f.txt, f.wx, y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* Pre-rendered radial glow sprites — building one gradient per glow per
+   * frame melts the GC in a big night-time town. */
+  const glowSprites = {};
+  function glowSprite(color) {
+    if (!glowSprites[color]) {
+      const c = document.createElement('canvas');
+      c.width = c.height = 24;
+      const g = c.getContext('2d');
+      const gr = g.createRadialGradient(12, 12, 0.5, 12, 12, 12);
+      gr.addColorStop(0, color);
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr;
+      g.fillRect(0, 0, 24, 24);
+      glowSprites[color] = c;
+    }
+    return glowSprites[color];
+  }
+
+  /* ---------------- ambient-life spots (rebuilt per map) ---------------- */
+
+  let ambient = null;
+
+  function buildAmbientSpots() {
+    ambient = { fish: [], glade: [], stars: [] };
+    for (let y = 0; y < MAPH; y++) {
+      for (let x = 0; x < MAPW; x++) {
+        const i = idx(x, y), t = G.tiles[i], h = tileHash(x, y);
+        if (isWaterTile(t) && G.shore[i]) {
+          if (h < 0.08 && ambient.fish.length < 40) ambient.fish.push({ x, y, h });
+        } else if (t === TILE.GRASS && h >= 0.08 && h < 0.14 && ambient.glade.length < 24) {
+          if (tileAt(x + 1, y) === TILE.TREE || tileAt(x - 1, y) === TILE.TREE ||
+              tileAt(x, y + 1) === TILE.TREE || tileAt(x, y - 1) === TILE.TREE) {
+            ambient.glade.push({ x, y, h });
+          }
+        } else if (t === TILE.DEEP && !G.shore[i] && h < 0.05 && ambient.stars.length < 80) {
+          ambient.stars.push({ x, y, h });
+        }
+      }
+    }
+  }
 
   function tilePath(sx, sy) {
     ctx.beginPath();
@@ -121,13 +369,32 @@ const Render = (() => {
 
   function draw(time, toolActive) {
     if (canvas.width !== Math.round(canvas.clientWidth * dpr)) resize();
+
+    // frame delta in sim-time (freezes with pause, scales with game speed)
+    const dtF = lastDrawT == null ? 0.016 : Math.max(0, Math.min(0.1, time - lastDrawT));
+    lastDrawT = time;
+    // wall-clock delta for camera effects that must settle even while paused
+    const wallNow = performance.now() / 1000;
+    const wallDt = lastWallT == null ? 0.016 : Math.min(0.1, wallNow - lastWallT);
+    lastWallT = wallNow;
+    tickWeather(time, dtF, wallDt);
+    advanceRain(dtF);
+    const night = nightFactor(time);
+    const dusk = duskFactor(time);
+    const nightOn = night > 0.45;
+
+    shakeAmp *= Math.exp(-6 * wallDt);
+    const shx = shakeAmp > 0.05 ? (Math.random() * 2 - 1) * shakeAmp : 0;
+    const shy = shakeAmp > 0.05 ? (Math.random() * 2 - 1) * shakeAmp : 0;
+
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#0d2a40';
+    ctx.fillStyle = seaColor(night);
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.setTransform(cam.zoom * dpr, 0, 0, cam.zoom * dpr, cam.x * dpr, cam.y * dpr);
+    ctx.setTransform(cam.zoom * dpr, 0, 0, cam.zoom * dpr, (cam.x + shx) * dpr, (cam.y + shy) * dpr);
 
     const r = visibleRange();
     const PAD = Sprites.TILE_PAD;
+    const glows = []; // lit-window positions collected during the sprite pass
 
     /* ---- ground pass: textured diamond tiles ---- */
     for (let y = r.y0; y <= r.y1; y++) {
@@ -204,12 +471,14 @@ const Render = (() => {
       if (w.fx < r.x0 - 1 || w.fx > r.x1 + 1 || w.fy < r.y0 - 1 || w.fy > r.y1 + 1) continue;
       items.push({ d: w.fx + w.fy + 0.01, kind: 'person', w });
     }
-    // trading ship circling the archipelago
-    const sa = time * 0.045;
-    const RX = MAPW * 0.47, RY = MAPH * 0.44;
-    const shipX = MAPW / 2 + Math.cos(sa) * RX;
-    const shipY = MAPH / 2 + Math.sin(sa) * RY;
-    items.push({ d: shipX + shipY, kind: 'ship', fx: shipX, fy: shipY, a: sa });
+    // visiting merchant ship (sails in, docks, sails out)
+    if (G.trader) {
+      items.push({ d: G.trader.x + G.trader.y, kind: 'trader', t: G.trader });
+    }
+
+    // expedition ship, visible while leaving and returning
+    const ex = expeditionPos();
+    if (ex) items.push({ d: ex.fx + ex.fy, kind: 'exped', fx: ex.fx, fy: ex.fy, flip: ex.flip });
 
     // cargo ships shuttling between the warehouse and colonies
     for (const route of cargoRoutes()) {
@@ -234,11 +503,24 @@ const Render = (() => {
 
     /* ---- draw sprites ---- */
     for (const it of items) {
-      if (it.kind === 'ship') {
-        drawShip(it, time, RX, RY);
+      if (it.kind === 'trader') {
+        drawTrader(it.t, time);
+        continue;
+      }
+      if (it.kind === 'exped') {
+        drawHullRipple(it.fx, it.fy, time);
+        const sp = Sprites.get('ship');
+        const sx = (it.fx - it.fy) * TW2, sy = (it.fx + it.fy) * TH2;
+        const bob = Math.sin(time * 1.8 + 1) * 1.4;
+        ctx.save();
+        ctx.translate(sx, sy - sp.oy + bob);
+        if (it.flip) ctx.scale(-1, 1);
+        ctx.drawImage(sp.c, -sp.w / 2, 0, sp.w, sp.h);
+        ctx.restore();
         continue;
       }
       if (it.kind === 'cargo') {
+        drawHullRipple(it.fx, it.fy, time);
         const sp = Sprites.get('ship');
         const sx = (it.fx - it.fy) * TW2, sy = (it.fx + it.fy) * TH2;
         const bob = Math.sin(time * 1.6 + it.fx) * 1.2;
@@ -250,6 +532,7 @@ const Render = (() => {
         continue;
       }
       if (it.kind === 'pirate') {
+        drawHullRipple(it.p.x, it.p.y, time);
         drawPirate(it.p, time);
         continue;
       }
@@ -264,11 +547,38 @@ const Render = (() => {
         }, time);
         continue;
       }
-      const sp = Sprites.get(it.key);
+      const useNight = nightOn && it.b && it.b.done;
+      const sp = Sprites.get(useNight ? it.key + '@n' : it.key);
       const topX = (it.x - it.y) * TW2;
       const topY = (it.x + it.y) * TH2;
       const baseY = topY + it.s * TH; // bottom vertex of footprint diamond
-      ctx.drawImage(sp.c, topX - sp.w / 2, baseY - sp.oy, sp.w, sp.h);
+
+      if (!it.b && it.key.startsWith('tree') && cam.zoom > 0.7) {
+        // wind-swayed canopy: shear around the trunk base
+        const sway = Math.sin(time * 1.4 + it.x * 0.7 + it.y * 1.3) * 0.02 * (0.5 + windVal);
+        ctx.save();
+        ctx.translate(topX, baseY);
+        ctx.transform(1, 0, sway, 1, 0, 0);
+        ctx.drawImage(sp.c, -sp.w / 2, -sp.oy, sp.w, sp.h);
+        ctx.restore();
+      } else if (it.b && it.b.bornT != null && time - it.b.bornT < 0.6) {
+        // completion pop
+        const age = time - it.b.bornT;
+        const k = 1 + 0.16 * Math.exp(-4 * age) * Math.sin(12 * age);
+        ctx.save();
+        ctx.translate(topX, baseY);
+        ctx.scale(k, k);
+        ctx.drawImage(sp.c, -sp.w / 2, -sp.oy, sp.w, sp.h);
+        ctx.restore();
+      } else {
+        ctx.drawImage(sp.c, topX - sp.w / 2, baseY - sp.oy, sp.w, sp.h);
+      }
+
+      if (useNight && sp.lights && sp.lights.length) {
+        for (const l of sp.lights) {
+          glows.push([topX - sp.w / 2 + l[0], baseY - sp.oy + l[1]]);
+        }
+      }
 
       if (it.b) {
         const b = it.b;
@@ -290,7 +600,52 @@ const Render = (() => {
     }
 
     drawShots(time);
-    drawAmbience(time);
+    drawParticles(dtF);
+    drawFloats(dtF);
+    drawAmbience(time, night, r);
+
+    /* ---- night & dusk tint (screen space) ---- */
+    if (night > 0.01 || dusk > 0.01) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      if (night > 0.01) {
+        ctx.fillStyle = `rgba(13,20,56,${(0.55 * night).toFixed(3)})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      if (dusk > 0.01) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = `rgba(255,120,45,${(0.10 * dusk).toFixed(3)})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.setTransform(cam.zoom * dpr, 0, 0, cam.zoom * dpr, (cam.x + shx) * dpr, (cam.y + shy) * dpr);
+
+      // starlight on open water + warm window glows, above the tint
+      if (night > 0.05) {
+        if (!ambient) buildAmbientSpots();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const s of ambient.stars) {
+          if (s.x < r.x0 || s.x > r.x1 || s.y < r.y0 || s.y > r.y1) continue;
+          const tw = 0.4 + 0.6 * Math.sin(time * 2 + s.h * 90);
+          ctx.fillStyle = `rgba(235,240,255,${(0.55 * night * tw).toFixed(3)})`;
+          const sx = (s.x - s.y) * TW2 + (s.h * 40) % TW2 - TH2, sy = (s.x + s.y) * TH2 + (s.h * 90) % TH2;
+          ctx.fillRect(sx, sy, 1.6, 1.4);
+        }
+        const warm = glowSprite('rgba(255,195,95,0.55)');
+        ctx.globalAlpha = night;
+        for (const gpt of glows) {
+          ctx.drawImage(warm, gpt[0] - 10, gpt[1] - 10, 20, 20);
+        }
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+
+    /* ---- rain & lightning (screen space) ---- */
+    if (stormEase > 0 || flash > 0.01) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      drawWeather();
+      ctx.setTransform(cam.zoom * dpr, 0, 0, cam.zoom * dpr, (cam.x + shx) * dpr, (cam.y + shy) * dpr);
+    }
 
     /* ---- ghost ---- */
     if (ghost.active) drawGhost();
@@ -433,54 +788,205 @@ const Render = (() => {
     return cargoCache.routes;
   }
 
-  /* Drifting cloud shadows + circling gulls. */
-  function drawAmbience(time) {
+  /* Cloud shadows, gull flocks, jumping fish, rowboats, fireflies,
+   * butterflies — the island breathes. */
+  function gullAt(gx, gy, time, i) {
+    const flap = Math.sin(time * 7 + i * 3) * 2.6;
+    ctx.strokeStyle = 'rgba(246,249,251,0.92)';
+    ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(gx - 4.5, gy);
+    ctx.quadraticCurveTo(gx - 2, gy - flap, gx, gy);
+    ctx.quadraticCurveTo(gx + 2, gy - flap, gx + 4.5, gy);
+    ctx.stroke();
+  }
+
+  function drawAmbience(time, night, r) {
+    if (!ambient) buildAmbientSpots();
+
+    // cloud shadows — more and darker in a storm, faster with the wind
     const span = (MAPW + MAPH) * TW2 + 1200;
-    for (let i = 0; i < 3; i++) {
-      const cx = ((time * (7 + i * 3) + i * 1733) % span) - span / 2;
+    const clouds = 3 + Math.round(3 * stormEase);
+    for (let i = 0; i < clouds; i++) {
+      const cx = ((time * (7 + i * 3) * (1 + windVal) + i * 1733) % span) - span / 2;
       const cy = MAPH * TH2 * (0.55 + 0.35 * Math.sin(i * 2.1)) + Math.sin(time * 0.08 + i * 2) * 90;
-      ctx.fillStyle = 'rgba(14,28,50,0.07)';
+      ctx.fillStyle = `rgba(14,28,50,${(0.07 + 0.1 * stormEase).toFixed(3)})`;
       ctx.beginPath(); ctx.ellipse(cx, cy, 210, 95, 0, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.ellipse(cx + 130, cy + 35, 150, 65, 0, 0, Math.PI * 2); ctx.fill();
     }
-    for (let i = 0; i < 3; i++) {
-      const a = time * (0.07 + i * 0.02) + i * 2.2;
-      const tx = MAPW / 2 + Math.cos(a) * (13 + i * 6);
-      const ty = MAPH / 2 + Math.sin(a * 1.3) * (11 + i * 5);
-      const gx = (tx - ty) * TW2, gy = (tx + ty) * TH2 - 76 - i * 16;
-      const flap = Math.sin(time * 7 + i * 3) * 2.6;
-      ctx.strokeStyle = 'rgba(246,249,251,0.92)';
-      ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+
+    const day = 1 - night;
+
+    // gull flocks over living anchors: fishers, the warehouse, a docked trader
+    if (day > 0.2 && stormEase < 0.5) {
+      const anchors = [];
+      const wh = G.buildings.find(b => b.key === 'warehouse');
+      if (wh) anchors.push([wh.x + 1, wh.y + 1]);
+      for (const b of G.buildings) {
+        if (b.key === 'fisher' && b.done && anchors.length < 4) anchors.push([b.x, b.y]);
+      }
+      if (G.trader) anchors.push([G.trader.x, G.trader.y]);
+      let gi = 0;
+      for (const [ax, ay] of anchors) {
+        for (let k = 0; k < 2 && gi < 12; k++, gi++) {
+          const a = time * (0.25 + gi * 0.03) + gi * 2.2;
+          const tx = ax + Math.cos(a) * (1.6 + k);
+          const ty = ay + Math.sin(a * 1.3) * (1.4 + k * 0.8);
+          if (tx < r.x0 || tx > r.x1 || ty < r.y0 || ty > r.y1) continue;
+          gullAt((tx - ty) * TW2, (tx + ty) * TH2 - 66 - k * 14, time, gi);
+        }
+      }
+    }
+
+    // jumping fish along the shoreline
+    for (const s of ambient.fish) {
+      if (s.x < r.x0 || s.x > r.x1 || s.y < r.y0 || s.y > r.y1) continue;
+      const T = 7 + s.h * 9;
+      const ph = (time + s.h * 100) % T;
+      if (ph > 0.55) continue;
+      const k = ph / 0.55;
+      const sx = (s.x - s.y) * TW2, sy = (s.x + s.y) * TH2 + TH2;
+      const arcY = -Math.sin(k * Math.PI) * 10;
+      ctx.strokeStyle = 'rgba(210,225,235,0.85)';
+      ctx.lineWidth = 1.8; ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(gx - 4.5, gy);
-      ctx.quadraticCurveTo(gx - 2, gy - flap, gx, gy);
-      ctx.quadraticCurveTo(gx + 2, gy - flap, gx + 4.5, gy);
+      ctx.moveTo(sx - 3 + k * 6, sy + arcY);
+      ctx.quadraticCurveTo(sx - 1 + k * 6, sy + arcY - 2.4, sx + 1.5 + k * 6, sy + arcY - 0.6);
       ctx.stroke();
+      ctx.strokeStyle = `rgba(235,248,255,${(0.5 * (1 - k)).toFixed(3)})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(sx, sy + 1, 2 + k * 8, 1 + k * 3, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // rowboats bobbing off every working fisher's hut
+    for (const b of G.buildings) {
+      if (b.key !== 'fisher' || !b.done) continue;
+      if (b.x < r.x0 - 3 || b.x > r.x1 + 3 || b.y < r.y0 - 3 || b.y > r.y1 + 3) continue;
+      if (!boatSpots[b.id]) {
+        const w = nearestWaterTo(b);
+        boatSpots[b.id] = w == null ? -1 : w;
+      }
+      const w = boatSpots[b.id];
+      if (w === -1) continue;
+      const bx = w % MAPW, by = (w - bx) / MAPW;
+      const drift = Math.sin(time * 0.14 + b.id) * 0.5;
+      const sp = Sprites.get('boat');
+      const sx = (bx - by + drift) * TW2, sy = (bx + by) * TH2 + TH2;
+      const bob = Math.sin(time * 1.6 + b.id * 2) * 1;
+      ctx.save();
+      ctx.translate(sx, sy - sp.oy + bob);
+      if (b.id % 2) ctx.scale(-1, 1);
+      ctx.drawImage(sp.c, -sp.w / 2, 0, sp.w, sp.h);
+      ctx.restore();
+    }
+
+    // fireflies in forest glades at night…
+    if (night > 0.5) {
+      ctx.globalCompositeOperation = 'lighter';
+      const green = glowSprite('rgba(216,255,160,0.9)');
+      for (const s of ambient.glade) {
+        if (s.x < r.x0 || s.x > r.x1 || s.y < r.y0 || s.y > r.y1) continue;
+        for (let i = 0; i < 2; i++) {
+          const fx2 = s.x + Math.sin(time * 0.5 + s.h * 9 + i * 3) * 0.9;
+          const fy2 = s.y + Math.cos(time * 0.37 + s.h * 7 + i * 1.7) * 0.7;
+          const px = (fx2 - fy2) * TW2, py = (fx2 + fy2) * TH2 + TH2 - 8 - 3 * i;
+          const a = (0.35 + 0.45 * Math.sin(time * 3 + i * 2 + s.h * 40)) * night;
+          if (a <= 0.05) continue;
+          ctx.globalAlpha = a;
+          ctx.drawImage(green, px - 4, py - 4, 8, 8);
+        }
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    } else if (day > 0.6 && stormEase < 0.3) {
+      // …butterflies there by day
+      for (const s of ambient.glade) {
+        if (s.x < r.x0 || s.x > r.x1 || s.y < r.y0 || s.y > r.y1) continue;
+        const fx2 = s.x + Math.sin(time * 0.4 + s.h * 20) * 1.1;
+        const fy2 = s.y + Math.cos(time * 0.31 + s.h * 13) * 0.9;
+        const px = (fx2 - fy2) * TW2, py = (fx2 + fy2) * TH2 + TH2 - 9 + Math.sin(time * 2.2 + s.h * 30) * 2;
+        const wing = Math.abs(Math.sin(time * 10 + s.h * 50));
+        ctx.fillStyle = s.h < 0.11 ? '#e8b73c' : '#d8dcf0';
+        ctx.beginPath();
+        ctx.ellipse(px - 1 * wing, py, 1.5 * wing + 0.3, 1, 0.4, 0, Math.PI * 2);
+        ctx.ellipse(px + 1 * wing, py, 1.5 * wing + 0.3, 1, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
-  function drawShip(it, time, RX, RY) {
+  const boatSpots = {}; // fisher id -> cached water tile (or -1)
+
+  // breathing wake ellipse under any ship on the water
+  function drawHullRipple(fx, fy, time) {
+    const sx = (fx - fy) * TW2, sy = (fx + fy) * TH2;
+    const k = 0.7 + 0.3 * Math.sin(time * 1.9 + fx);
+    ctx.strokeStyle = `rgba(235,248,255,${(0.28 * k).toFixed(3)})`;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy + TH2 * 0.6, 13 * k + 4, 5 * k + 1.5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  function drawTrader(t, time) {
+    drawHullRipple(t.x, t.y, time);
     const sp = Sprites.get('ship');
-    // wake: fading puffs along the path behind the ship
-    for (let i = 1; i <= 3; i++) {
-      const wa = it.a - i * 0.025;
-      const wx = MAPW / 2 + Math.cos(wa) * RX;
-      const wy = MAPH / 2 + Math.sin(wa) * RY;
-      const wsx = (wx - wy) * TW2, wsy = (wx + wy) * TH2;
-      ctx.fillStyle = `rgba(235,248,255,${(0.3 - i * 0.085).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.ellipse(wsx, wsy + TH2, 4 + i * 2.5, 1.6 + i, 0, 0, Math.PI * 2);
-      ctx.fill();
+    const sx = (t.x - t.y) * TW2, sy = (t.x + t.y) * TH2;
+    const bob = Math.sin(time * 1.7 + 0.6) * 1.4;
+    let flip = false;
+    if (t.path && t.seg < t.path.length - 1) {
+      const a = t.path[t.seg], n = t.path[t.seg + 1];
+      flip = ((n[0] - a[0]) - (n[1] - a[1])) < 0;
     }
-    const sx = (it.fx - it.fy) * TW2, sy = (it.fx + it.fy) * TH2;
-    const bob = Math.sin(time * 1.8) * 1.5;
-    // flip so the bow faces the direction of travel
-    const screenVX = (-Math.sin(it.a) * RX - Math.cos(it.a) * RY);
     ctx.save();
     ctx.translate(sx, sy - sp.oy + bob);
-    if (screenVX < 0) ctx.scale(-1, 1);
+    if (flip) ctx.scale(-1, 1);
     ctx.drawImage(sp.c, -sp.w / 2, 0, sp.w, sp.h);
     ctx.restore();
+    if (t.state === 'docked') { // golden "deals!" pennant
+      const puls = 0.7 + 0.3 * Math.sin(time * 5);
+      ctx.fillStyle = `rgba(255,215,94,${puls.toFixed(3)})`;
+      ctx.font = 'bold 12px Georgia, serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('⚖', sx, sy - sp.oy - 8 + bob);
+    }
+  }
+
+  /* Expedition ship: visible sailing out (first leg) and home (last leg). */
+  let expCache = null;
+
+  function expeditionPos() {
+    const e = G.expedition;
+    if (!e) { expCache = null; return null; }
+    const LEG = 12; // seconds of visible sailing each way
+    let frac = null, flip = false;
+    if (e.t < LEG) frac = e.t / LEG;
+    else if (e.dur - e.t < LEG) { frac = (e.dur - e.t) / LEG; flip = true; }
+    if (frac == null) return null;
+    if (!expCache) {
+      const wh = G.buildings.find(b => b.key === 'warehouse');
+      const dock = wh && nearestWaterTo(wh);
+      if (dock == null) return null;
+      expCache = waterPath(dock, i => {
+        const x = i % MAPW, y = (i - x) / MAPW;
+        return x === 0 || y === 0 || x === MAPW - 1 || y === MAPH - 1;
+      });
+      if (!expCache || expCache.length < 2) { expCache = null; return null; }
+      expCache.reverse(); // waterPath is goal-first; we sail dock → edge
+    }
+    const p = expCache;
+    const pos = frac * (p.length - 1);
+    const seg = Math.min(p.length - 2, Math.floor(pos));
+    const k = pos - seg;
+    const a = p[seg], n = p[seg + 1];
+    const dirX = ((n[0] - a[0]) - (n[1] - a[1])) * (flip ? -1 : 1);
+    return {
+      fx: a[0] + (n[0] - a[0]) * k,
+      fy: a[1] + (n[1] - a[1]) * k,
+      flip: dirX < 0,
+    };
   }
 
   function drawSmoke(topX, baseY, sp, b, time) {
@@ -491,7 +997,7 @@ const Render = (() => {
       const a = (1 - ph) * 0.3;
       ctx.fillStyle = `rgba(228,228,225,${a.toFixed(3)})`;
       ctx.beginPath();
-      ctx.arc(px + Math.sin((ph * 5 + b.id) * 1.7) * 2.5 + ph * 3, py - ph * 17, 1.6 + ph * 3.6, 0, Math.PI * 2);
+      ctx.arc(px + Math.sin((ph * 5 + b.id) * 1.7) * 2.5 + ph * (3 + windVal * 14), py - ph * 17, 1.6 + ph * 3.6, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -558,6 +1064,7 @@ const Render = (() => {
     mine:       [{ du: -0.22, dv: 0.45, anim: 'hammer' }],
     toolmaker:  [{ du: 0.48, dv: 0.38, anim: 'hammer' }],
     potato:     [{ du: -0.3, dv: 0.3, anim: 'bend' }, { du: 0.2, dv: -0.05, anim: 'bend', ph: 2.1 }],
+    spice:      [{ du: -0.3, dv: 0.32, anim: 'bend' }, { du: 0.22, dv: -0.05, anim: 'bend', ph: 1.8 }],
     grain:      [{ du: -0.3, dv: 0.35, anim: 'bend' }, { du: 0.25, dv: 0, anim: 'bend', ph: 1.4 }],
     bakery:     [{ du: 0.42, dv: 0.4, anim: 'idle' }],
     distillery: [{ du: -0.38, dv: 0.48, anim: 'idle' }],
@@ -575,7 +1082,7 @@ const Render = (() => {
     weaver: '#8a4a78', mine: '#5a5a64', toolmaker: '#6a4a3a', potato: '#b8862a',
     distillery: '#6d3a2a', market: '#a84a3c', warehouse: '#7a5c3a', chapel: '#4a3a2c',
     tavern: '#3a6ea8', depot: '#7a5c3a', grain: '#b8862a', bakery: '#e2d3b4',
-    kontor: '#3a6ea8', watchtower: '#5a5a64', firehouse: '#b8463a',
+    kontor: '#3a6ea8', watchtower: '#5a5a64', firehouse: '#b8463a', spice: '#c83c2a',
   };
 
   function drawWorkers(b, it, topX, topY, time) {
@@ -755,6 +1262,23 @@ const Render = (() => {
       mmCtx.arc(G.pirate.x * sxr, G.pirate.y * syr, 2.5, 0, Math.PI * 2);
       mmCtx.fill();
     }
+    if (G.trader) { // merchant blip, brighter while docked
+      mmCtx.fillStyle = G.trader.state === 'docked' ? '#ffd75e' : 'rgba(255,215,94,0.6)';
+      mmCtx.beginPath();
+      mmCtx.arc(G.trader.x * sxr, G.trader.y * syr, 2.2, 0, Math.PI * 2);
+      mmCtx.fill();
+    }
+    // pulsing pings over burning buildings
+    const now = performance.now() / 1000;
+    for (const b of G.buildings) {
+      if (b.fire == null) continue;
+      const k = (now * 1.6) % 1;
+      mmCtx.strokeStyle = `rgba(255,60,30,${(0.9 - k * 0.9).toFixed(3)})`;
+      mmCtx.lineWidth = 1.4;
+      mmCtx.beginPath();
+      mmCtx.arc(b.x * sxr, b.y * syr, 2 + k * 5, 0, Math.PI * 2);
+      mmCtx.stroke();
+    }
     const w = canvas.clientWidth, h = canvas.clientHeight;
     const cs = [
       screenToTile(0, 0), screenToTile(w, 0),
@@ -780,8 +1304,12 @@ const Render = (() => {
   resize();
 
   return {
-    cam, ghost, canvas,
+    cam, camT, camVel, ghost, canvas,
     draw, resize, screenToTile, centerOn, zoomAt,
+    updateCamera, flyTo, nightFactor,
+    fx: fxBurst,
+    setLightningHook: fn => { onLightning = fn; },
+    stormLevel: () => stormEase,
     rebuildGroundCache, minimapToTile, mmCanvas,
     markMapDirty: () => { mmDirty = true; },
   };

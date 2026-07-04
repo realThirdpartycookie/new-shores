@@ -13,15 +13,19 @@ const TW = 64, TH = 32, TW2 = 32, TH2 = 16;
 // Map size (tiles) — big enough for an archipelago
 const MAPW = 96, MAPH = 96;
 
-// Crops that depend on island fertility (building key = crop key)
-const FERTILITY_CROPS = ['sheep', 'grain', 'potato'];
+// Crops that depend on island fertility (building key = crop key).
+// Spice never grows on the home island — colonies are the only source.
+const FERTILITY_CROPS = ['sheep', 'grain', 'potato', 'spice'];
+
+// Length of a full day/night cycle in game seconds (render + music read this)
+const DAY_LENGTH = 300;
 
 // Storage
 const STORAGE_BASE = 300;
 const STORAGE_PER_DEPOT = 150;
 
 // Goods that occupy warehouse space (gold is unlimited)
-const GOODS = ['wood', 'tools', 'iron', 'food', 'grain', 'wool', 'cloth', 'potato', 'liquor'];
+const GOODS = ['wood', 'tools', 'iron', 'food', 'grain', 'wool', 'cloth', 'potato', 'liquor', 'spice'];
 
 const RES_META = {
   gold:   { name: 'Gold',     icon: '🪙' },
@@ -34,6 +38,7 @@ const RES_META = {
   cloth:  { name: 'Cloth',    icon: '🧵' },
   potato: { name: 'Potatoes', icon: '🥔' },
   liquor: { name: 'Liquor',   icon: '🥃' },
+  spice:  { name: 'Spice',    icon: '🌶️' },
 };
 
 // Trading ship prices
@@ -47,6 +52,7 @@ const TRADE = {
   cloth:  { buy: 24, sell: 10 },
   potato: { buy: 9,  sell: 3 },
   liquor: { buy: 30, sell: 13 },
+  spice:  { buy: 40, sell: 18 },
 };
 
 /* Population tiers.
@@ -71,6 +77,12 @@ const TIERS = [
     key: 'citizen', name: 'Citizens', resMax: 25, tax: 0.07,
     goods: { food: 1.1, cloth: 0.5, liquor: 0.4 },
     services: ['market', 'faith', 'fun'],
+    upgrade: { cost: { gold: 600, wood: 20, tools: 8 }, needsGood: 'spice' },
+  },
+  {
+    key: 'merchant', name: 'Merchants', resMax: 40, tax: 0.12,
+    goods: { food: 1.2, cloth: 0.5, liquor: 0.5, spice: 0.3 },
+    services: ['market', 'faith', 'fun'],
     upgrade: null,
   },
 ];
@@ -80,6 +92,7 @@ const UNLOCKS = [
   null,
   { tier: 0, count: 24, label: 'Pioneers' },
   { tier: 1, count: 30, label: 'Settlers' },
+  { tier: 2, count: 40, label: 'Citizens' },
 ];
 
 const SERVICE_NAMES = { market: 'Marketplace', faith: 'Chapel', fun: 'Tavern' };
@@ -215,6 +228,13 @@ const BUILDINGS = {
     prod: { out: 'liquor', n: 1, cycle: 8, in: { potato: 1 } },
     desc: 'Distils potatoes into liquor — needed for Citizens.',
   },
+  spice: {
+    name: 'Spice Garden', icon: '🌶️', size: 2, tier: 3, cost: { gold: 250, wood: 8, tools: 2 },
+    needsRoad: true, buildTime: 8,
+    prod: { out: 'spice', n: 1, cycle: 8 },
+    req: { pasture: { r: 3, n: 8 } },
+    desc: 'Grows fiery peppers — but only in colonial soil. Merchants pay dearly for them.',
+  },
 };
 
 // Toolbar layout (null = separator)
@@ -223,7 +243,7 @@ const TOOLBAR_ITEMS = [
   'woodcutter', 'fisher', 'hunter', null,
   'sheep', 'weaver', 'grain', 'bakery', 'mine', 'toolmaker', 'depot', null,
   'watchtower', 'firehouse', 'kontor', null,
-  'tavern', 'potato', 'distillery',
+  'tavern', 'potato', 'distillery', 'spice',
 ];
 
 /* Sequential quests shown in the goal bar. check() runs against the game
@@ -265,12 +285,45 @@ const QUESTS = [
   { text: 'Reach 60 Citizens — let your island flourish!', reward: { gold: 1000 },
     prog: () => [popOf(2), 60],
     check: () => popOf(2) >= 60 },
+  { text: 'Harvest spice in a colony (5 in stock) 🌶️', reward: { gold: 500 },
+    prog: () => [Math.floor(G.stock.spice), 5],
+    check: () => G.stock.spice >= 5 },
+  { text: 'Upgrade a house to Merchants', reward: { gold: 800 },
+    check: () => G.buildings.some(b => b.key === 'house' && b.tier >= 3) },
+  { text: 'House 25 Merchants — earn the Imperial Charter!', reward: { gold: 2000 },
+    prog: () => [popOf(3), 25],
+    check: () => popOf(3) >= 25 },
 ];
+
+/* Achievements — persistent milestones. check() runs against live state;
+ * a few are awarded directly from event hooks in game.js instead. */
+const ACHIEVEMENTS = [
+  { id: 'hamlet',      icon: '🏘️', name: 'Hamlet',          desc: 'House 50 residents',                      check: () => totalPop() >= 50 },
+  { id: 'town',        icon: '🏛️', name: 'Thriving Town',   desc: 'House 150 residents',                     check: () => totalPop() >= 150 },
+  { id: 'metropolis',  icon: '👑', name: 'Metropolis',      desc: 'House 300 residents',                     check: () => totalPop() >= 300 },
+  { id: 'corsairbane', icon: '⚔️', name: 'Corsair’s Bane', desc: 'Sink 3 pirate ships',                 check: () => G.pirateSunk >= 3 },
+  { id: 'admiral',     icon: '⚓', name: 'Admiral',         desc: 'Sink 10 pirate ships',                    check: () => G.pirateSunk >= 10 },
+  { id: 'tycoon',      icon: '💰', name: 'Tycoon',          desc: 'Hold 10,000 gold',                        check: () => Math.floor(G.stock.gold) >= 10000 },
+  { id: 'colonist',    icon: '🏝️', name: 'Colonist',        desc: 'Build on a second island',                check: () => new Set(G.buildings.filter(b => b.done).map(b => islandAt(b.x, b.y))).size >= 2 },
+  { id: 'roadbuilder', icon: '🛤️', name: 'Roadbuilder',     desc: 'Lay 200 road tiles',                      check: () => { let n = 0; for (let i = 0; i < G.roads.length; i++) n += G.roads[i]; return n >= 200; } },
+  { id: 'firefighter', icon: '🚒', name: 'Bucket Brigade',  desc: 'Have the fire brigade save a building',   check: null },
+  { id: 'survivor',    icon: '💊', name: 'Survivor',        desc: 'See a household recover from the plague', check: null },
+  { id: 'quartermaster', icon: '📜', name: 'Quartermaster', desc: 'Complete every quest',                    check: () => G.quest >= QUESTS.length },
+  { id: 'explorer',    icon: '🧭', name: 'Explorer',        desc: 'Complete 5 expeditions',                  check: () => (G.expeditionsDone || 0) >= 5 },
+  { id: 'spicetrader', icon: '🌶️', name: 'Spice Trader',    desc: 'Harvest 50 spice',                        check: () => (G.spiceMade || 0) >= 50 },
+  { id: 'flourished',  icon: '🌸', name: 'Flourished',      desc: 'Reach 60 Citizens',                       check: () => G.flourished },
+];
+
+/* Naval expeditions: cost to outfit and the weighted outcome table.
+ * Outcomes are resolved in game.js resolveExpedition(). */
+const EXPEDITION_COST = { gold: 300, food: 20, wood: 10, tools: 5 };
+const EXPEDITION_TIME = [120, 180]; // min..max seconds at sea
 
 // bundle colors for goods carried by walkers
 const GOOD_COLORS = {
   wood: '#8a6034', tools: '#5a5a64', iron: '#7a7a82', food: '#9ab8c8',
   grain: '#d8b13c', wool: '#eeeae0', cloth: '#b84a3c', potato: '#c8a060', liquor: '#c88a2a',
+  spice: '#c0503c',
 };
 
 const SAVE_KEY = 'new-shores-v1';
