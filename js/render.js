@@ -299,6 +299,24 @@ const Render = (() => {
     }
   }
 
+  /* Repeating-pattern fills for the AI terrain textures, keyed by TILE type.
+   * Land only: on wide open water a repeating texture reads as an obvious
+   * grid, so the sea stays procedural. */
+  let terrainPats = null;
+
+  function getTerrainPatterns() {
+    if (terrainPats) return terrainPats;
+    const names = { [TILE.SAND]: 'sand', [TILE.GRASS]: 'grass', [TILE.TREE]: 'grass', [TILE.ROCK]: 'rock' };
+    const pats = {};
+    for (const t in names) {
+      const tex = Assets.texture(names[t]);
+      if (!tex) return null; // wait until every texture has loaded
+      pats[t] = ctx.createPattern(tex.img, 'repeat');
+    }
+    terrainPats = pats;
+    return terrainPats;
+  }
+
   function tilePath(sx, sy) {
     ctx.beginPath();
     ctx.moveTo(sx, sy);
@@ -396,14 +414,43 @@ const Render = (() => {
     const PAD = Sprites.TILE_PAD;
     const glows = []; // lit-window positions collected during the sprite pass
 
-    /* ---- ground pass: textured diamond tiles ---- */
+    /* ---- ground pass: textured diamond tiles ----
+     * With AI raster terrain, all diamonds of a type are batched into one
+     * path and filled with a world-anchored repeating pattern — that keeps
+     * neighbouring tiles seamless. Falls back to per-tile procedural art. */
+    const raster = typeof Assets !== 'undefined' && Assets.texture('grass') ? getTerrainPatterns() : null;
+    if (raster) {
+      const paths = {};
+      const e = 1.5; // slight overlap so terrain types meet without cracks
+      for (let y = r.y0; y <= r.y1; y++) {
+        for (let x = r.x0; x <= r.x1; x++) {
+          const t = G.tiles[idx(x, y)];
+          if (!raster[t]) continue; // water stays procedural
+          const p = paths[t] || (paths[t] = new Path2D());
+          const sx = (x - y) * TW2, sy = (x + y) * TH2;
+          p.moveTo(sx, sy - e);
+          p.lineTo(sx + TW2 + e, sy + TH2);
+          p.lineTo(sx, sy + TH + e);
+          p.lineTo(sx - TW2 - e, sy + TH2);
+          p.closePath();
+        }
+      }
+      for (const t of [TILE.SAND, TILE.GRASS, TILE.TREE, TILE.ROCK]) {
+        if (paths[t]) {
+          ctx.fillStyle = raster[t];
+          ctx.fill(paths[t]);
+        }
+      }
+    }
     for (let y = r.y0; y <= r.y1; y++) {
       for (let x = r.x0; x <= r.x1; x++) {
         const i = idx(x, y);
         const t = G.tiles[i];
         const sx = (x - y) * TW2, sy = (x + y) * TH2;
-        const ts = Sprites.getTile(t, Math.floor(tileHash(x, y) * 8));
-        ctx.drawImage(ts.c, sx - TW2 - PAD, sy - PAD, ts.w, ts.h);
+        if (!raster || !raster[t]) {
+          const ts = Sprites.getTile(t, Math.floor(tileHash(x, y) * 8));
+          ctx.drawImage(ts.c, sx - TW2 - PAD, sy - PAD, ts.w, ts.h);
+        }
 
         if (t === TILE.WATER || t === TILE.DEEP) {
           if (G.shore[i]) { // animated foam on the two upper edges
@@ -544,6 +591,8 @@ const Render = (() => {
           anim: 'walk', tint: w.tint,
           carry: w.carry ? GOOD_COLORS[w.carry] : null,
           ph: w.id * 1.31,
+          // crate-shouldering figure on the delivery leg, plain walker home
+          peep: w.kind === 'carrier' && w.carry ? 'peep_carrier' : 'peep_v' + (w.id % 4),
         }, time);
         continue;
       }
@@ -1005,7 +1054,15 @@ const Render = (() => {
   /* ---------------- people ---------------- */
 
   // Tiny animated figure. anim: walk | idle | chop | hammer | bend
+  // which raster figure plays which role
+  const PEEP_FOR_ANIM = { chop: 'peep_chop', hammer: 'peep_hammer', bend: 'peep_bend', idle: 'peep_idle' };
+
   function drawPerson(px, py, o, time) {
+    // AI raster figure, animated with bob/lean/swing transforms
+    if (typeof Assets !== 'undefined') {
+      const sp = Assets.get(o.peep || PEEP_FOR_ANIM[o.anim] || 'peep_v0');
+      if (sp) { drawRasterPerson(sp, px, py, o, time); return; }
+    }
     const t = time * (o.anim === 'walk' ? 9 : 5.5) + (o.ph || 0) * 3;
     let bob = 0, lean = 0;
     // shadow
@@ -1051,6 +1108,28 @@ const Render = (() => {
       ctx.fillRect(px - 1.8, py - 10.2 + bob, 3.6, 2.6);
       ctx.strokeStyle = 'rgba(40,26,12,0.6)'; ctx.lineWidth = 0.7;
       ctx.strokeRect(px - 1.8, py - 10.2 + bob, 3.6, 2.6);
+    }
+  }
+
+  function drawRasterPerson(sp, px, py, o, time) {
+    const t = time * (o.anim === 'walk' ? 9 : 5.5) + (o.ph || 0) * 3;
+    ctx.fillStyle = 'rgba(15,25,10,0.28)';
+    ctx.beginPath(); ctx.ellipse(px, py + 0.3, 3, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+    let bob = 0, rot = 0;
+    if (o.anim === 'walk') { bob = Math.abs(Math.sin(t)) * 0.9; rot = Math.sin(t) * 0.055; }
+    else if (o.anim === 'idle') { bob = Math.sin(t * 0.5) * 0.4; }
+    else if (o.anim === 'chop' || o.anim === 'hammer') { rot = -0.12 + (Math.sin(t) + 1) * 0.14; }
+    else if (o.anim === 'bend') { rot = (Math.sin(t * 0.7) + 1) * 0.16; }
+    ctx.save();
+    ctx.translate(px, py - bob); // pivot at the feet so leaning reads naturally
+    ctx.rotate(rot);
+    ctx.drawImage(sp.c, -sp.w / 2, -sp.h, sp.w, sp.h);
+    ctx.restore();
+    if (o.carry) { // the hauled good, colour-coded as before
+      ctx.fillStyle = o.carry;
+      ctx.fillRect(px - 1.9, py - sp.h - 1.6 + bob, 3.8, 2.8);
+      ctx.strokeStyle = 'rgba(40,26,12,0.6)'; ctx.lineWidth = 0.7;
+      ctx.strokeRect(px - 1.9, py - sp.h - 1.6 + bob, 3.8, 2.8);
     }
   }
 

@@ -1,1 +1,6 @@
 .DS_Store
+dev/imagegen/.venv/
+dev/imagegen/raw/
+dev/imagegen/*.png
+dev/imagegen/*.jpg
+dev/imagegen/__pycache__/manifest.cpython-312.pyc

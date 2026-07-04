@@ -57,6 +57,8 @@
 </div></div>
 
 <script src="../js/config.js"></script>
+<script src="../assets/manifest.js"></script>
+<script src="../js/assets.js"></script>
 <script src="../js/nn.js"></script>
 <script src="../js/ai-weights.js"></script>
 <script src="../js/sprites.js"></script>
@@ -143,7 +145,7 @@
 
   Render.rebuildGroundCache();
   Render.centerOn(wh.x + 1, wh.y + 1);
-  Render.cam.zoom = 1.4;
+  Render.cam.zoom = location.hash === '#close' ? 2.4 : 1.4;
   Render.centerOn(wh.x + 1, wh.y + 1);
   UI.updateHUD();
   if (location.hash === '#stats') UI.openModal('modal-stats');

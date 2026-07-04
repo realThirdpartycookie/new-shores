@@ -2,7 +2,9 @@
 
 A browser island city-builder in the spirit of the classic 18th-century
 colony-building games. Pure HTML5 canvas + vanilla JavaScript — no dependencies,
-no build step, no external assets. All graphics are drawn procedurally in code.
+no build step. The sprites and terrain textures are **AI-generated raster art**
+(FLUX.1-schnell, generated locally — see below), with the original procedural
+art kept as an automatic fallback for any missing image.
 
 ## Run it
 
@@ -113,7 +115,9 @@ ships shuttle between your harbours automatically.
   and grounded fishers; the wind bends the trees and carries the chimney smoke.
 - **Carriers** haul finished goods along your roads to the Warehouse; **workers**
   chop, hammer and harvest at their buildings; **villagers** stroll the streets;
-  rowboats bob and fish jump along the shoreline.
+  rowboats bob and fish jump along the shoreline. The people are AI-generated
+  raster figures too, animated in-engine (bob, lean, swing) since diffusion
+  can't draw consistent walk cycles.
 - **Juice**: placement dust, demolition rubble, completion pops, floating
   rewards, screen shake under cannon fire, and a HUD that flinches when stocks
   move.
@@ -156,10 +160,38 @@ The game autosaves to your browser every 30 seconds.
 - `js/config.js` — all tuning: tiers, needs, buildings, prices, quests, achievements
 - `js/map.js` — seeded archipelago generation & fertilities
 - `js/game.js` — simulation (no DOM access)
-- `js/sprites.js` / `js/render.js` — procedural art & isometric renderer
+- `js/assets.js` + `assets/` — AI-generated raster sprites & seamless land
+  textures (see *AI art pipeline* below; the sea stays procedural — a
+  repeating texture reads as an obvious grid on open water)
+- `js/sprites.js` / `js/render.js` — procedural fallback art & isometric renderer
   (day/night, weather, particles, wildlife)
 - `js/music.js` — procedural soundtrack
 - `js/ui.js` / `js/main.js` — HUD, tooltips, input, game loop
+
+### AI art pipeline (`dev/imagegen/`)
+
+The raster art is generated **fully locally** with
+[FLUX.1-schnell](https://huggingface.co/black-forest-labs/FLUX.1-schnell)
+(4-bit MLX build, ~9 GB) running on Apple Silicon via
+[mflux](https://github.com/filipstrand/mflux) — no cloud APIs.
+
+- `manifest.py` — every asset with its prompt, seed and target sprite metrics
+- `generate.py` — batch generation (4 steps, 768² objects / 512² textures)
+- `postprocess.py` — background removal (border flood-fill + edge
+  decontamination), trim, downscale to 2× logical sprite size; makes the
+  terrain textures seamless; writes `assets/*.png` + `assets/manifest.js`
+- `contactsheet.py` — grid overview of the raw generations
+
+Regenerate everything with:
+
+```
+cd dev/imagegen
+uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python mflux numpy pillow
+.venv/bin/python generate.py && .venv/bin/python postprocess.py
+```
+
+`js/assets.js` loads the manifest at boot; any sprite without a PNG (or a
+headless run) falls back to the procedural drawing in `js/sprites.js`.
 
 Headless test suite: `node dev/smoke.js` (105 assertions — boots the game against
 a stubbed DOM and exercises placement, roads, services, growth, production, trade,

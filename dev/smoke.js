@@ -57,7 +57,7 @@ sandbox.addEventListener = () => {};
 sandbox.removeEventListener = () => {};
 vm.createContext(sandbox);
 
-const files = ['config.js', 'nn.js', 'ai-weights.js', 'sprites.js', 'map.js', 'game.js', 'ai.js', 'render.js', 'music.js', 'ui.js', 'main.js'];
+const files = ['config.js', 'assets.js', 'nn.js', 'ai-weights.js', 'sprites.js', 'map.js', 'game.js', 'ai.js', 'render.js', 'music.js', 'ui.js', 'main.js'];
 let src = '';
 for (const f of files) {
   src += fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8') + '\n';

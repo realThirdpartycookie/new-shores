@@ -1465,6 +1465,11 @@ const Sprites = (() => {
   /* ---------------- public API ---------------- */
 
   function get(key) {
+    // AI-generated raster sprite takes precedence when available
+    if (typeof Assets !== 'undefined') {
+      const a = Assets.get(key);
+      if (a) return a;
+    }
     if (cache[key]) return cache[key];
     // '@n' suffix: same sprite drawn with lit windows (cached separately)
     const night = key.endsWith('@n');
