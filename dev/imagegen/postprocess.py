@@ -12,7 +12,7 @@ from collections import deque
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
-from manifest import ASSETS, TEXTURES
+from manifest import ASSETS, ICONS, TEXTURES
 
 # (saturation, brightness) trims so the terrain doesn't overpower the sprites
 TEX_ADJUST = {
@@ -136,6 +136,21 @@ def main():
             "w": lw, "h": round(lh, 1), "oy": round(lh * oyk, 1),
         }
         print(f"ok  {a['key']}  {lw}x{round(lh)}")
+
+    manifest["icons"] = {}
+    for i in ICONS:
+        src = os.path.join(RAW, i["key"] + ".png")
+        if not os.path.exists(src):
+            print(f"missing raw/{i['key']}.png — skipped")
+            continue
+        img = trim(remove_background(Image.open(src)), pad=6)
+        side = max(img.width, img.height)  # pad to square, keep centred
+        sq = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+        sq.paste(img, ((side - img.width) // 2, (side - img.height) // 2))
+        sq = sq.resize((64, 64), Image.LANCZOS)
+        sq.save(os.path.join(OUT, i["key"] + ".png"))
+        manifest["icons"][i["key"]] = {"file": i["key"] + ".png"}
+        print(f"ok  {i['key']}  64x64")
 
     for t in TEXTURES:
         src = os.path.join(RAW, t["key"] + ".png")

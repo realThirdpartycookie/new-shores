@@ -75,6 +75,40 @@ ASSETS = [
     dict(key="peep_idle", fith=15, seed=709, strip=True, oyk=1.0, desc="a workman standing relaxed with a tool belt, simple 18th century clothes, full body"),
 ]
 
+ICON_STYLE = (
+    "game inventory icon of {desc}, single object centered, "
+    "plain solid white background, 18th century colonial style, softly painted, "
+    "vibrant colors, subtle shading, no text, no letters, no watermark"
+)
+
+# UI icons (resources, population tiers, toolbar utilities) — 64x64 with alpha
+ICONS = [
+    dict(key="ico_gold", seed=801, desc="a small stack of shiny gold coins"),
+    dict(key="ico_wood", seed=802, desc="three stacked wooden logs"),
+    dict(key="ico_tools", seed=803, desc="a crossed hammer and wrought-iron pliers"),
+    dict(key="ico_iron", seed=804, desc="two grey iron ingots"),
+    dict(key="ico_food", seed=805, desc="a fresh fish and a loaf of bread"),
+    dict(key="ico_grain", seed=806, desc="a golden sheaf of wheat tied with string"),
+    dict(key="ico_wool", seed=807, desc="a fluffy ball of white wool with a strand"),
+    dict(key="ico_cloth", seed=808, desc="a folded bolt of red cloth fabric"),
+    dict(key="ico_potato", seed=809, desc="three brown potatoes"),
+    dict(key="ico_liquor", seed=810, desc="a rum bottle with a small full glass"),
+    dict(key="ico_spice", seed=811, desc="a pile of red chili peppers"),
+    dict(key="ico_pop0", seed=821, desc="portrait bust of a pioneer farmer man with a straw hat"),
+    dict(key="ico_pop1", seed=822, desc="portrait bust of a settler woman with a bonnet"),
+    dict(key="ico_pop2", seed=823, desc="portrait bust of a citizen gentleman with a tricorn hat"),
+    dict(key="ico_pop3", seed=824, desc="portrait bust of a wealthy merchant with a gold chain and fine hat"),
+    dict(key="ico_road", seed=831, desc="a short curved cobblestone road segment"),
+    dict(key="ico_demolish", seed=832, desc="a heavy wooden mallet"),
+    dict(key="ico_trade", seed=833, desc="a balance scale with gold coins"),
+    dict(key="ico_exped", seed=834, desc="an antique brass compass rose"),
+    dict(key="ico_achieve", seed=835, desc="a golden trophy cup with a laurel wreath"),
+    dict(key="ico_stats", seed=836, desc="a parchment scroll with a rising chart line drawn on it"),
+    dict(key="ico_help", seed=837, desc="an open leather-bound book"),
+    dict(key="ico_save", seed=838, desc="a letter sealed with red wax"),
+    dict(key="ico_new", seed=839, desc="a rolled-up treasure map with a red ribbon"),
+]
+
 TEXTURES = [
     dict(key="tex_grass", seed=601, desc="lush green meadow grass"),
     dict(key="tex_sand", seed=602, desc="warm light beach sand with faint ripples"),

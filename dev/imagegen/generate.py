@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 
-from manifest import ASSETS, TEXTURES, STYLE, TEXTURE_STYLE
+from manifest import ASSETS, ICONS, TEXTURES, STYLE, ICON_STYLE, TEXTURE_STYLE
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RAW = os.path.join(HERE, "raw")
@@ -46,6 +46,11 @@ def main():
             continue
         if not gen(a["key"], STYLE.format(desc=a["desc"]), a["seed"], 768, args.force):
             fails.append(a["key"])
+    for i in ICONS:
+        if only and i["key"] not in only:
+            continue
+        if not gen(i["key"], ICON_STYLE.format(desc=i["desc"]), i["seed"], 512, args.force):
+            fails.append(i["key"])
     for t in TEXTURES:
         if only and t["key"] not in only:
             continue

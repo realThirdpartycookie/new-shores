@@ -513,6 +513,16 @@ const Render = (() => {
         x: b.x, y: b.y, s: def.size, b,
       });
     }
+    // rowboats bobbing on the water in front of the fishers' huts
+    for (const b of G.buildings) {
+      if (b.key !== 'fisher' || !b.done) continue;
+      const spot = fisherBoatSpot(b);
+      if (spot === -1) continue;
+      const bx = spot % MAPW, by = (spot - bx) / MAPW;
+      if (bx < r.x0 - 2 || bx > r.x1 + 2 || by < r.y0 - 2 || by > r.y1 + 2) continue;
+      items.push({ d: bx + by + 0.2, kind: 'boat', bx, by, b });
+    }
+
     // people out and about
     for (const w of G.walkers) {
       if (w.fx < r.x0 - 1 || w.fx > r.x1 + 1 || w.fy < r.y0 - 1 || w.fy > r.y1 + 1) continue;
@@ -583,12 +593,35 @@ const Render = (() => {
         drawPirate(it.p, time);
         continue;
       }
+      if (it.kind === 'boat') {
+        const sp = Sprites.get('boat');
+        const drift = Math.sin(time * 0.14 + it.b.id) * 0.3;
+        const sx = (it.bx - it.by + drift) * TW2, sy = (it.bx + it.by) * TH2 + TH2;
+        const bob = Math.sin(time * 1.6 + it.b.id * 2) * 1;
+        ctx.strokeStyle = 'rgba(235,248,255,0.25)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.ellipse(sx, sy + 1, sp.w * 0.45, sp.w * 0.17, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(sx, sy - sp.oy + bob);
+        if (it.b.id % 2) ctx.scale(-1, 1);
+        ctx.drawImage(sp.c, -sp.w / 2, 0, sp.w, sp.h);
+        ctx.restore();
+        continue;
+      }
       if (it.kind === 'person') {
         const w = it.w;
         const px = (w.fx - w.fy) * TW2;
         const py = (w.fx + w.fy) * TH2 + TH2;
+        // travel direction decides facing (front/back set + mirroring)
+        let dir = null;
+        if (w.path && w.seg < w.path.length - 1) {
+          const a = w.path[w.seg], n = w.path[w.seg + 1];
+          dir = { dx: n[0] - a[0], dy: n[1] - a[1] };
+        }
         drawPerson(px, py, {
-          anim: 'walk', tint: w.tint,
+          anim: 'walk', tint: w.tint, dir,
           carry: w.carry ? GOOD_COLORS[w.carry] : null,
           ph: w.id * 1.31,
           // crate-shouldering figure on the delivery leg, plain walker home
@@ -909,28 +942,6 @@ const Render = (() => {
       ctx.stroke();
     }
 
-    // rowboats bobbing off every working fisher's hut
-    for (const b of G.buildings) {
-      if (b.key !== 'fisher' || !b.done) continue;
-      if (b.x < r.x0 - 3 || b.x > r.x1 + 3 || b.y < r.y0 - 3 || b.y > r.y1 + 3) continue;
-      if (!boatSpots[b.id]) {
-        const w = nearestWaterTo(b);
-        boatSpots[b.id] = w == null ? -1 : w;
-      }
-      const w = boatSpots[b.id];
-      if (w === -1) continue;
-      const bx = w % MAPW, by = (w - bx) / MAPW;
-      const drift = Math.sin(time * 0.14 + b.id) * 0.5;
-      const sp = Sprites.get('boat');
-      const sx = (bx - by + drift) * TW2, sy = (bx + by) * TH2 + TH2;
-      const bob = Math.sin(time * 1.6 + b.id * 2) * 1;
-      ctx.save();
-      ctx.translate(sx, sy - sp.oy + bob);
-      if (b.id % 2) ctx.scale(-1, 1);
-      ctx.drawImage(sp.c, -sp.w / 2, 0, sp.w, sp.h);
-      ctx.restore();
-    }
-
     // fireflies in forest glades at night…
     if (night > 0.5) {
       ctx.globalCompositeOperation = 'lighter';
@@ -967,6 +978,27 @@ const Render = (() => {
   }
 
   const boatSpots = {}; // fisher id -> cached water tile (or -1)
+
+  /* The rowboat must sit on open water IN FRONT of the hut (greater x+y),
+   * never on the roof — and it depth-sorts with the buildings. */
+  function fisherBoatSpot(b) {
+    if (boatSpots[b.id] !== undefined) return boatSpots[b.id];
+    let best = -1, bestScore = -Infinity;
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const x = b.x + dx, y = b.y + dy;
+        if (!inBounds(x, y)) continue;
+        const i = idx(x, y);
+        if (!isWaterTile(G.tiles[i])) continue;
+        const score = (dx + dy) * 2                    // seaward of the hut
+          - (Math.abs(dx) + Math.abs(dy))              // …but close
+          + (G.tiles[i] === TILE.WATER ? 1 : 0);       // shallows over deep
+        if (score > bestScore) { bestScore = score; best = i; }
+      }
+    }
+    boatSpots[b.id] = best;
+    return best;
+  }
 
   // breathing wake ellipse under any ship on the water
   function drawHullRipple(fx, fy, time) {
@@ -1055,13 +1087,25 @@ const Render = (() => {
 
   // Tiny animated figure. anim: walk | idle | chop | hammer | bend
   // which raster figure plays which role
-  const PEEP_FOR_ANIM = { chop: 'peep_chop', hammer: 'peep_hammer', bend: 'peep_bend', idle: 'peep_idle' };
+  const PEEP_FOR_ANIM = { chop: 'peep_chop', hammer: 'peep_hammer', bend: 'peep_bend', idle: 'peep_idle', build: 'peep_build' };
 
   function drawPerson(px, py, o, time) {
-    // AI raster figure, animated with bob/lean/swing transforms
     if (typeof Assets !== 'undefined') {
-      const sp = Assets.get(o.peep || PEEP_FOR_ANIM[o.anim] || 'peep_v0');
-      if (sp) { drawRasterPerson(sp, px, py, o, time); return; }
+      const name = o.peep || PEEP_FOR_ANIM[o.anim] || 'peep_v0';
+      // The sheet art walks toward the lower-left. Screen-up motion switches
+      // to the back-view set; screen-right motion mirrors horizontally.
+      let flip = false, back = false;
+      if (o.dir) {
+        back = (o.dir.dx + o.dir.dy) < 0;   // screen y-component of travel
+        flip = (o.dir.dx - o.dir.dy) > 0;   // screen x-component of travel
+      }
+      // real animation frames from the character sheet…
+      let frames = back ? Assets.peepFrames(name + '_back') : null;
+      if (!frames) frames = Assets.peepFrames(name);
+      if (frames) { drawFramePerson(frames, px, py, o, time, flip); return; }
+      // …or a single figure animated with bob/lean/swing transforms
+      const sp = Assets.get(name);
+      if (sp) { drawRasterPerson(sp, px, py, o, time, flip); return; }
     }
     const t = time * (o.anim === 'walk' ? 9 : 5.5) + (o.ph || 0) * 3;
     let bob = 0, lean = 0;
@@ -1088,7 +1132,7 @@ const Render = (() => {
     ctx.strokeStyle = o.tint; ctx.lineWidth = 2.4;
     ctx.beginPath(); ctx.moveTo(px, py - 2.6); ctx.lineTo(nx, ny); ctx.stroke();
     // working arm with tool
-    if (o.anim === 'chop' || o.anim === 'hammer') {
+    if (o.anim === 'chop' || o.anim === 'hammer' || o.anim === 'build') {
       const swing = Math.sin(t);
       const ang = -2.3 + (swing + 1) * (o.anim === 'chop' ? 0.95 : 0.8);
       const ax = nx + Math.cos(ang) * 3.6, ay = ny + 1 + Math.sin(ang) * 3.6;
@@ -1111,25 +1155,51 @@ const Render = (() => {
     }
   }
 
-  function drawRasterPerson(sp, px, py, o, time) {
+  function drawFramePerson(frames, px, py, o, time, flip) {
+    const speed = o.anim === 'walk' ? 9 : o.anim === 'idle' ? 2.2 : 5.5;
+    const t = time * speed + (o.ph || 0) * 3;
+    const sp = frames[Math.floor(t / (Math.PI / 2)) % frames.length];
+    ctx.fillStyle = 'rgba(15,25,10,0.28)';
+    ctx.beginPath(); ctx.ellipse(px, py + 0.3, 3, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+    const bob = o.anim === 'walk' ? Math.abs(Math.sin(t)) * 0.4
+      : o.anim === 'idle' ? Math.sin(t * 0.5) * 0.3 : 0;
+    if (flip) {
+      ctx.save();
+      ctx.translate(px, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(sp.c, -sp.w / 2, py - sp.h - bob, sp.w, sp.h);
+      ctx.restore();
+    } else {
+      ctx.drawImage(sp.c, px - sp.w / 2, py - sp.h - bob, sp.w, sp.h);
+    }
+    if (o.carry) { // colour-coded good, tagged onto the shouldered crate
+      ctx.fillStyle = o.carry;
+      ctx.fillRect(px - 2, py - sp.h + 0.5 - bob, 4, 2.6);
+      ctx.strokeStyle = 'rgba(40,26,12,0.6)'; ctx.lineWidth = 0.7;
+      ctx.strokeRect(px - 2, py - sp.h + 0.5 - bob, 4, 2.6);
+    }
+  }
+
+  function drawRasterPerson(sp, px, py, o, time, flip) {
     const t = time * (o.anim === 'walk' ? 9 : 5.5) + (o.ph || 0) * 3;
     ctx.fillStyle = 'rgba(15,25,10,0.28)';
     ctx.beginPath(); ctx.ellipse(px, py + 0.3, 3, 1.2, 0, 0, Math.PI * 2); ctx.fill();
     let bob = 0, rot = 0;
     if (o.anim === 'walk') { bob = Math.abs(Math.sin(t)) * 0.9; rot = Math.sin(t) * 0.055; }
     else if (o.anim === 'idle') { bob = Math.sin(t * 0.5) * 0.4; }
-    else if (o.anim === 'chop' || o.anim === 'hammer') { rot = -0.12 + (Math.sin(t) + 1) * 0.14; }
+    else if (o.anim === 'chop' || o.anim === 'hammer' || o.anim === 'build') { rot = -0.12 + (Math.sin(t) + 1) * 0.14; }
     else if (o.anim === 'bend') { rot = (Math.sin(t * 0.7) + 1) * 0.16; }
     ctx.save();
     ctx.translate(px, py - bob); // pivot at the feet so leaning reads naturally
     ctx.rotate(rot);
+    if (flip) ctx.scale(-1, 1);
     ctx.drawImage(sp.c, -sp.w / 2, -sp.h, sp.w, sp.h);
     ctx.restore();
     if (o.carry) { // the hauled good, colour-coded as before
       ctx.fillStyle = o.carry;
-      ctx.fillRect(px - 1.9, py - sp.h - 1.6 + bob, 3.8, 2.8);
+      ctx.fillRect(px - 1.9, py - sp.h - 1.6 - bob, 3.8, 2.8);
       ctx.strokeStyle = 'rgba(40,26,12,0.6)'; ctx.lineWidth = 0.7;
-      ctx.strokeRect(px - 1.9, py - sp.h - 1.6 + bob, 3.8, 2.8);
+      ctx.strokeRect(px - 1.9, py - sp.h - 1.6 - bob, 3.8, 2.8);
     }
   }
 
@@ -1168,11 +1238,11 @@ const Render = (() => {
     const def = BUILDINGS[b.key];
     let spots;
     if (!b.done) {
-      // construction crew hammering on the plot
+      // construction crew kneeling and hammering on the plot
       const e = def.size / 2 - 0.2;
       spots = [
-        { du: -e, dv: e * 0.6, anim: 'hammer', tint: '#b8862a' },
-        { du: e * 0.7, dv: -e * 0.4, anim: 'hammer', tint: '#a84a3c', ph: 1.3 },
+        { du: -e, dv: e * 0.6, anim: 'build', tint: '#b8862a' },
+        { du: e * 0.7, dv: -e * 0.4, anim: 'build', tint: '#a84a3c', ph: 1.3 },
       ];
     } else if (def.prod) {
       if (b.status !== 'ok') return; // nobody works at a stalled site

@@ -13,6 +13,7 @@ const Assets = (() => {
   const entries = {};   // asset key -> {c, w, h, oy, chimney, lights, ready}
   const textures = {};  // grass|sand|water|deep|rock -> {img, size, ready}
   let enabled = false;
+  let assetRoot = 'assets/';
 
   // manifest texture keys -> terrain names used by sprites.js
   const TEX_NAMES = { tex_grass: 'grass', tex_sand: 'sand', tex_water: 'water', tex_deep: 'deep', tex_rock: 'rock' };
@@ -57,6 +58,38 @@ const Assets = (() => {
     return t && t.ready ? t : null;
   }
 
+  /* Animation frames for a character (from the sliced sprite sheet):
+   * array of sprite entries, or null until every frame has loaded. */
+  const peepCache = {};
+  function peepFrames(name) {
+    if (!enabled || typeof ASSET_MANIFEST === 'undefined') return null;
+    if (peepCache[name] !== undefined) return peepCache[name];
+    const keys = ASSET_MANIFEST.peeps && ASSET_MANIFEST.peeps[name];
+    if (!keys) { peepCache[name] = null; return null; }
+    const frames = [];
+    for (const k of keys) {
+      const e = entries[k];
+      if (!e || !e.ready) return null; // not cached — retry when loaded
+      frames.push(e);
+    }
+    peepCache[name] = frames;
+    return frames;
+  }
+
+  /* URL of a generated UI icon (gold, wood, pop0, road, …) or null. */
+  function icon(name) {
+    if (!enabled || typeof ASSET_MANIFEST === 'undefined') return null;
+    const m = ASSET_MANIFEST.icons && ASSET_MANIFEST.icons['ico_' + name];
+    return m ? assetRoot + m.file : null;
+  }
+
+  /* URL of a sprite PNG (for toolbar building buttons) or null. */
+  function spriteURL(key) {
+    if (!enabled || typeof ASSET_MANIFEST === 'undefined') return null;
+    const m = ASSET_MANIFEST.objects && ASSET_MANIFEST.objects[key];
+    return m ? assetRoot + m.file : null;
+  }
+
   function init() {
     if (typeof Image === 'undefined' || typeof ASSET_MANIFEST === 'undefined') return;
     // resolve assets/ relative to this script so dev/*.html pages work too
@@ -65,6 +98,7 @@ const Assets = (() => {
       const cur = document.currentScript && document.currentScript.src;
       if (cur) root = cur.replace(/js\/assets\.js.*$/, '') + 'assets/';
     } catch (err) { /* keep default */ }
+    assetRoot = root;
 
     for (const key in (ASSET_MANIFEST.objects || {})) {
       const m = ASSET_MANIFEST.objects[key];
@@ -88,5 +122,5 @@ const Assets = (() => {
   }
 
   init();
-  return { get, texture, enabled: () => enabled };
+  return { get, texture, icon, spriteURL, peepFrames, enabled: () => enabled };
 })();

@@ -287,6 +287,246 @@
    "w": 6.0,
    "h": 15.0,
    "oy": 15.0
+  },
+  "peep_v0_f0": {
+   "file": "peep_v0_f0.png",
+   "w": 6.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v0_f1": {
+   "file": "peep_v0_f1.png",
+   "w": 7.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v0_f2": {
+   "file": "peep_v0_f2.png",
+   "w": 5.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v0_f3": {
+   "file": "peep_v0_f3.png",
+   "w": 7.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v1_f0": {
+   "file": "peep_v1_f0.png",
+   "w": 6.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v1_f1": {
+   "file": "peep_v1_f1.png",
+   "w": 7.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v1_f2": {
+   "file": "peep_v1_f2.png",
+   "w": 6.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v1_f3": {
+   "file": "peep_v1_f3.png",
+   "w": 6.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v2_f0": {
+   "file": "peep_v2_f0.png",
+   "w": 5.0,
+   "h": 13,
+   "oy": 13
+  },
+  "peep_v2_f1": {
+   "file": "peep_v2_f1.png",
+   "w": 5.0,
+   "h": 13,
+   "oy": 13
+  },
+  "peep_v2_f2": {
+   "file": "peep_v2_f2.png",
+   "w": 5.5,
+   "h": 13,
+   "oy": 13
+  },
+  "peep_v2_f3": {
+   "file": "peep_v2_f3.png",
+   "w": 4.5,
+   "h": 13,
+   "oy": 13
+  },
+  "peep_v3_f0": {
+   "file": "peep_v3_f0.png",
+   "w": 7.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v3_f1": {
+   "file": "peep_v3_f1.png",
+   "w": 6.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v3_f2": {
+   "file": "peep_v3_f2.png",
+   "w": 6.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v3_f3": {
+   "file": "peep_v3_f3.png",
+   "w": 6.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_carrier_f0": {
+   "file": "peep_carrier_f0.png",
+   "w": 6.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_carrier_f1": {
+   "file": "peep_carrier_f1.png",
+   "w": 6.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_carrier_f2": {
+   "file": "peep_carrier_f2.png",
+   "w": 6.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_carrier_f3": {
+   "file": "peep_carrier_f3.png",
+   "w": 6.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_chop_f0": {
+   "file": "peep_chop_f0.png",
+   "w": 8.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_chop_f1": {
+   "file": "peep_chop_f1.png",
+   "w": 9.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_hammer_f0": {
+   "file": "peep_hammer_f0.png",
+   "w": 8.5,
+   "h": 16,
+   "oy": 16
+  },
+  "peep_hammer_f1": {
+   "file": "peep_hammer_f1.png",
+   "w": 10.5,
+   "h": 16,
+   "oy": 16
+  },
+  "peep_hammer_f2": {
+   "file": "peep_hammer_f2.png",
+   "w": 8.5,
+   "h": 16,
+   "oy": 16
+  },
+  "peep_hammer_f3": {
+   "file": "peep_hammer_f3.png",
+   "w": 8.5,
+   "h": 16,
+   "oy": 16
+  },
+  "peep_bend_f0": {
+   "file": "peep_bend_f0.png",
+   "w": 6.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_bend_f1": {
+   "file": "peep_bend_f1.png",
+   "w": 5.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_bend_f2": {
+   "file": "peep_bend_f2.png",
+   "w": 8.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_bend_f3": {
+   "file": "peep_bend_f3.png",
+   "w": 6.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_build_f0": {
+   "file": "peep_build_f0.png",
+   "w": 8.5,
+   "h": 12,
+   "oy": 12
+  },
+  "peep_build_f1": {
+   "file": "peep_build_f1.png",
+   "w": 10.0,
+   "h": 12,
+   "oy": 12
+  },
+  "peep_build_f2": {
+   "file": "peep_build_f2.png",
+   "w": 7.5,
+   "h": 12,
+   "oy": 12
+  },
+  "peep_build_f3": {
+   "file": "peep_build_f3.png",
+   "w": 10.0,
+   "h": 12,
+   "oy": 12
+  },
+  "peep_idle_f0": {
+   "file": "peep_idle_f0.png",
+   "w": 5.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v0_back_f0": {
+   "file": "peep_v0_back_f0.png",
+   "w": 5.5,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v1_back_f0": {
+   "file": "peep_v1_back_f0.png",
+   "w": 6.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_v2_back_f0": {
+   "file": "peep_v2_back_f0.png",
+   "w": 4.5,
+   "h": 13,
+   "oy": 13
+  },
+  "peep_v3_back_f0": {
+   "file": "peep_v3_back_f0.png",
+   "w": 6.0,
+   "h": 15,
+   "oy": 15
+  },
+  "peep_carrier_back_f0": {
+   "file": "peep_carrier_back_f0.png",
+   "w": 5.5,
+   "h": 15,
+   "oy": 15
   }
  },
  "textures": {
@@ -310,5 +550,151 @@
    "file": "tex_rock.png",
    "size": 256
   }
+ },
+ "icons": {
+  "ico_gold": {
+   "file": "ico_gold.png"
+  },
+  "ico_wood": {
+   "file": "ico_wood.png"
+  },
+  "ico_tools": {
+   "file": "ico_tools.png"
+  },
+  "ico_iron": {
+   "file": "ico_iron.png"
+  },
+  "ico_food": {
+   "file": "ico_food.png"
+  },
+  "ico_grain": {
+   "file": "ico_grain.png"
+  },
+  "ico_wool": {
+   "file": "ico_wool.png"
+  },
+  "ico_cloth": {
+   "file": "ico_cloth.png"
+  },
+  "ico_potato": {
+   "file": "ico_potato.png"
+  },
+  "ico_liquor": {
+   "file": "ico_liquor.png"
+  },
+  "ico_spice": {
+   "file": "ico_spice.png"
+  },
+  "ico_pop0": {
+   "file": "ico_pop0.png"
+  },
+  "ico_pop1": {
+   "file": "ico_pop1.png"
+  },
+  "ico_pop2": {
+   "file": "ico_pop2.png"
+  },
+  "ico_pop3": {
+   "file": "ico_pop3.png"
+  },
+  "ico_road": {
+   "file": "ico_road.png"
+  },
+  "ico_demolish": {
+   "file": "ico_demolish.png"
+  },
+  "ico_trade": {
+   "file": "ico_trade.png"
+  },
+  "ico_exped": {
+   "file": "ico_exped.png"
+  },
+  "ico_achieve": {
+   "file": "ico_achieve.png"
+  },
+  "ico_stats": {
+   "file": "ico_stats.png"
+  },
+  "ico_help": {
+   "file": "ico_help.png"
+  },
+  "ico_save": {
+   "file": "ico_save.png"
+  },
+  "ico_new": {
+   "file": "ico_new.png"
+  }
+ },
+ "peeps": {
+  "peep_v0": [
+   "peep_v0_f0",
+   "peep_v0_f1",
+   "peep_v0_f2",
+   "peep_v0_f3"
+  ],
+  "peep_v1": [
+   "peep_v1_f0",
+   "peep_v1_f1",
+   "peep_v1_f2",
+   "peep_v1_f3"
+  ],
+  "peep_v2": [
+   "peep_v2_f0",
+   "peep_v2_f1",
+   "peep_v2_f2",
+   "peep_v2_f3"
+  ],
+  "peep_v3": [
+   "peep_v3_f0",
+   "peep_v3_f1",
+   "peep_v3_f2",
+   "peep_v3_f3"
+  ],
+  "peep_carrier": [
+   "peep_carrier_f0",
+   "peep_carrier_f1",
+   "peep_carrier_f2",
+   "peep_carrier_f3"
+  ],
+  "peep_chop": [
+   "peep_chop_f0",
+   "peep_chop_f1"
+  ],
+  "peep_hammer": [
+   "peep_hammer_f0",
+   "peep_hammer_f1",
+   "peep_hammer_f2",
+   "peep_hammer_f3"
+  ],
+  "peep_bend": [
+   "peep_bend_f0",
+   "peep_bend_f1",
+   "peep_bend_f2",
+   "peep_bend_f3"
+  ],
+  "peep_build": [
+   "peep_build_f0",
+   "peep_build_f1",
+   "peep_build_f2",
+   "peep_build_f3"
+  ],
+  "peep_idle": [
+   "peep_idle_f0"
+  ],
+  "peep_v0_back": [
+   "peep_v0_back_f0"
+  ],
+  "peep_v1_back": [
+   "peep_v1_back_f0"
+  ],
+  "peep_v2_back": [
+   "peep_v2_back_f0"
+  ],
+  "peep_v3_back": [
+   "peep_v3_back_f0"
+  ],
+  "peep_carrier_back": [
+   "peep_carrier_back_f0"
+  ]
  }
 }

@@ -224,7 +224,7 @@ const UI = (() => {
       const span = document.createElement('span');
       span.className = 'res';
       span.id = `hudres-${g}`;
-      span.innerHTML = `${RES_META[g].icon} <b id="res-${g}">0</b><span class="trend" id="trend-${g}"></span>`;
+      span.innerHTML = `${resIcon(g)} <b id="res-${g}">0</b><span class="trend" id="trend-${g}"></span>`;
       span.addEventListener('mouseenter', () => {
         const r = span.getBoundingClientRect();
         tipShow(goodTipHTML(g), r.left, r.bottom + 8);
@@ -234,9 +234,26 @@ const UI = (() => {
     }
   }
 
+  /* AI-generated icon (falls back to the emoji when the PNG is missing). */
+  function resIcon(k, cls = 'ricon') {
+    const u = typeof Assets !== 'undefined' && Assets.icon(k);
+    return u ? `<img class="${cls}" src="${u}" alt="">` : RES_META[k].icon;
+  }
+
+  function bldIcon(key, cls = 'ricon') {
+    const u = typeof Assets !== 'undefined' &&
+      Assets.spriteURL(key === 'house' ? 'house1_0' : key);
+    return u ? `<img class="${cls}" src="${u}" alt="">` : (BUILDINGS[key] ? BUILDINGS[key].icon : '');
+  }
+
+  function utilIcon(name, fallback, cls = 'tb-img') {
+    const u = typeof Assets !== 'undefined' && Assets.icon(name);
+    return u ? `<img class="${cls}" src="${u}" alt="">` : fallback;
+  }
+
   function costStr(cost) {
     const parts = [];
-    for (const k in cost) parts.push(`${RES_META[k].icon}${cost[k]}`);
+    for (const k in cost) parts.push(`${resIcon(k)}${cost[k]}`);
     return parts.join(' ');
   }
 
@@ -417,32 +434,32 @@ const UI = (() => {
         continue;
       }
       if (item === 'road') {
-        addBtn('road', '🛣', 'Road', `🪙${ROAD_COST}`, 'Dirt road — connects buildings to the Warehouse. Drag to draw.', () => onTool({ mode: 'road' }));
+        addBtn('road', utilIcon('road', '🛣'), 'Road', `${resIcon('gold')}${ROAD_COST}`, 'Dirt road — connects buildings to the Warehouse. Drag to draw.', () => onTool({ mode: 'road' }));
         continue;
       }
       const def = BUILDINGS[item];
-      addBtn(item, def.icon, def.name, costStr(def.cost), `${def.name} — ${def.desc}`, () => onTool({ mode: 'build', key: item }));
+      addBtn(item, bldIcon(item, 'tb-img'), def.name, costStr(def.cost), `${def.name} — ${def.desc}`, () => onTool({ mode: 'build', key: item }));
     }
 
     const sep = document.createElement('div');
     sep.className = 'tb-sep';
     bar.appendChild(sep);
 
-    addBtn('demolish', '🗑', 'Demolish', '', 'Demolish buildings and roads (50% refund).', () => onTool({ mode: 'demolish' }));
-    addBtn('trade', '🚢', 'Trade', '', 'Trade with the free merchant.', () => { openModal('modal-trade'); refreshTrade(); });
-    addBtn('exped', '⛵', 'Expedition', costStr(EXPEDITION_COST), 'Outfit a ship and send it beyond the map — it may return with goods, treasure, sea charts or exotic seeds.', () => {
+    addBtn('demolish', utilIcon('demolish', '🗑'), 'Demolish', '', 'Demolish buildings and roads (50% refund).', () => onTool({ mode: 'demolish' }));
+    addBtn('trade', utilIcon('trade', '🚢'), 'Trade', '', 'Trade with the free merchant.', () => { openModal('modal-trade'); refreshTrade(); });
+    addBtn('exped', utilIcon('exped', '⛵'), 'Expedition', costStr(EXPEDITION_COST), 'Outfit a ship and send it beyond the map — it may return with goods, treasure, sea charts or exotic seeds.', () => {
       const res = startExpedition();
       if (!res.ok) toastMsg(res.why, false, 'danger');
       updateHUD();
     });
-    addBtn('achieve', '🏆', 'Honours', '', 'Your chronicle of achievements.', () => { openModal('modal-achieve'); refreshAchieve(); });
-    addBtn('stats', '📊', 'Stats', '', 'Population history and goods balance.', () => { openModal('modal-stats'); refreshStats(); });
-    addBtn('help', '❓', 'Help', '', 'How to play.', () => openModal('modal-help'));
-    addBtn('save', '💾', 'Save', '', 'Save your game (autosaves every 30s).', () => {
+    addBtn('achieve', utilIcon('achieve', '🏆'), 'Honours', '', 'Your chronicle of achievements.', () => { openModal('modal-achieve'); refreshAchieve(); });
+    addBtn('stats', utilIcon('stats', '📊'), 'Stats', '', 'Population history and goods balance.', () => { openModal('modal-stats'); refreshStats(); });
+    addBtn('help', utilIcon('help', '❓'), 'Help', '', 'How to play.', () => openModal('modal-help'));
+    addBtn('save', utilIcon('save', '💾'), 'Save', '', 'Save your game (autosaves every 30s).', () => {
       if (saveGame()) toastMsg('Game saved.');
       else toastMsg('Could not save!');
     });
-    addBtn('new', '🔄', 'New', '', 'Start a fresh island.', () => {
+    addBtn('new', utilIcon('new', '🔄'), 'New', '', 'Start a fresh island.', () => {
       if (confirm('Abandon this island and settle a new one?')) {
         const spot = newGame();
         Render.rebuildGroundCache();
@@ -521,7 +538,7 @@ const UI = (() => {
     const parts = [];
     for (const k in cost) {
       const ok = (G.stock[k] || 0) >= cost[k];
-      parts.push(`<span class="${ok ? '' : 'bad'}">${RES_META[k].icon}${cost[k]}</span>`);
+      parts.push(`<span class="${ok ? '' : 'bad'}">${resIcon(k)}${cost[k]}</span>`);
     }
     return parts.join(' ');
   }
@@ -541,7 +558,7 @@ const UI = (() => {
     if (UTILITY_TIPS[id]) return `<b>${UTILITY_TIPS[id]}</b>`;
     const def = BUILDINGS[id];
     if (!def) return '';
-    let h = `<b>${def.icon} ${def.name}</b>`;
+    let h = `<b>${bldIcon(id)} ${def.name}</b>`;
     if (def.tier > G.unlocked) {
       const u = UNLOCKS[def.tier - 1];
       h += `<div class="tip-line bad">🔒 Unlocks with ${TIERS[def.tier - 1].name}` +
@@ -550,9 +567,9 @@ const UI = (() => {
     h += `<div class="tip-line">${costHTML(def.cost)}</div>`;
     if (def.prod) {
       const perMin = (def.prod.n * 60 / def.prod.cycle).toFixed(1);
-      h += `<div class="tip-line">Produces ${RES_META[def.prod.out].icon} ${RES_META[def.prod.out].name} · ~${perMin}/min</div>`;
+      h += `<div class="tip-line">Produces ${resIcon(def.prod.out)} ${RES_META[def.prod.out].name} · ~${perMin}/min</div>`;
       if (def.prod.in) {
-        const ins = Object.entries(def.prod.in).map(([k, n]) => `${n} ${RES_META[k].icon}`).join(' + ');
+        const ins = Object.entries(def.prod.in).map(([k, n]) => `${n} ${resIcon(k)}`).join(' + ');
         h += `<div class="tip-line">Consumes ${ins} per cycle</div>`;
       }
     }
@@ -576,11 +593,13 @@ const UI = (() => {
       for (const key in BUILDINGS) {
         const d = BUILDINGS[key];
         if (!d.prod) continue;
-        if (CHAIN[d.prod.out]) CHAIN[d.prod.out].from.push(`${d.icon} ${d.name}`);
-        for (const k in (d.prod.in || {})) CHAIN[k] && CHAIN[k].to.push(`${d.icon} ${d.name}`);
+        if (CHAIN[d.prod.out]) CHAIN[d.prod.out].from.push(`${bldIcon(key)} ${d.name}`);
+        for (const k in (d.prod.in || {})) CHAIN[k] && CHAIN[k].to.push(`${bldIcon(key)} ${d.name}`);
       }
-      for (const t of TIERS) {
-        for (const k in t.goods) CHAIN[k] && CHAIN[k].to.push(`🏠 ${t.name}`);
+      for (let ti = 0; ti < TIERS.length; ti++) {
+        const u = typeof Assets !== 'undefined' && Assets.icon('pop' + ti);
+        const ic = u ? `<img class="ricon" src="${u}" alt="">` : '🏠';
+        for (const k in TIERS[ti].goods) CHAIN[k] && CHAIN[k].to.push(`${ic} ${TIERS[ti].name}`);
       }
     }
     return CHAIN[g];
@@ -589,7 +608,7 @@ const UI = (() => {
   function goodTipHTML(g) {
     const r = ratePerMin(g);
     const c = chainFor(g);
-    let h = `<b>${RES_META[g].icon} ${RES_META[g].name}</b>
+    let h = `<b>${resIcon(g)} ${RES_META[g].name}</b>
       <div class="tip-line">${Math.floor(G.stock[g] || 0)} / ${storageCap()} in store ·
       <span class="${r >= 0 ? 'ok' : 'bad'}">${r >= 0 ? '+' : ''}${r.toFixed(1)}/min</span></div>`;
     if (c.from.length) h += `<div class="tip-line">From: ${c.from.join(', ')}</div>`;
@@ -615,7 +634,7 @@ const UI = (() => {
 
   function buildingTipHTML(b) {
     const def = BUILDINGS[b.key];
-    let h = `<b>${def.icon} ${b.key === 'house' ? TIERS[b.tier].name + ' ' : ''}${def.name}</b>`;
+    let h = `<b>${bldIcon(b.key)} ${b.key === 'house' ? TIERS[b.tier].name + ' ' : ''}${def.name}</b>`;
     if (!b.done) {
       h += `<div class="tip-line">🚧 Building… ${Math.floor(Math.min(1, b.progress / def.buildTime) * 100)}%</div>`;
       return h;
@@ -631,7 +650,7 @@ const UI = (() => {
       if (b.status === 'nocond' && b.condWhy) h += `<div class="tip-line bad">${b.condWhy}</div>`;
       if (def.prod && b.status === 'ok') {
         const pct = Math.floor(Math.min(1, b.t / def.prod.cycle) * 100);
-        h += `<div class="tip-line">${RES_META[def.prod.out].icon} cycle ${pct}%</div>`;
+        h += `<div class="tip-line">${resIcon(def.prod.out)} cycle ${pct}%</div>`;
       }
     }
     h += `<div class="tip-sub">Click for details</div>`;
@@ -656,7 +675,7 @@ const UI = (() => {
     if (!b) { panel.classList.add('hidden'); return; }
     panel.classList.remove('hidden');
     const def = BUILDINGS[b.key];
-    $('panel-title').textContent = `${def.icon} ${b.key === 'house' ? TIERS[b.tier].name + ' ' : ''}${def.name}`;
+    $('panel-title').innerHTML = `${bldIcon(b.key)} ${b.key === 'house' ? TIERS[b.tier].name + ' ' : ''}${def.name}`;
     $('panel-demolish').classList.toggle('hidden', b.key === 'warehouse');
 
     let html = '';
@@ -668,7 +687,7 @@ const UI = (() => {
       html += '<b>Needs</b>';
       for (const good in tier.goods) {
         const ok = b.sat[good] !== false;
-        html += `<div class="row"><span>${RES_META[good].icon} ${RES_META[good].name}</span><span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'}</span></div>`;
+        html += `<div class="row"><span>${resIcon(good)} ${RES_META[good].name}</span><span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'}</span></div>`;
       }
       for (const s of tier.services) {
         const ok = !!b.svc[s];
@@ -677,7 +696,7 @@ const UI = (() => {
       if (tier.upgrade) {
         const next = TIERS[b.tier + 1];
         html += `<hr><b>Upgrade to ${next.name}</b><br>`;
-        html += `Full house + ${costStr(tier.upgrade.cost)} + ${RES_META[tier.upgrade.needsGood].icon} in stock`;
+        html += `Full house + ${costStr(tier.upgrade.cost)} + ${resIcon(tier.upgrade.needsGood)} in stock`;
         const why = whyNoUpgrade(b);
         if (why) html += `<br><span class="bad">${why}</span>`;
         else html += `<br><span class="ok">✓ Ready — advancing on the next growth step</span>`;
@@ -688,15 +707,15 @@ const UI = (() => {
       } else if (b.status === 'nocond') {
         html += `<span class="bad">✗ ${b.condWhy || 'Nature requirement not met'}</span>`;
       } else if (b.status === 'noinput') {
-        const ins = Object.keys(def.prod.in).map(k => RES_META[k].icon + ' ' + RES_META[k].name).join(', ');
+        const ins = Object.keys(def.prod.in).map(k => resIcon(k) + ' ' + RES_META[k].name).join(', ');
         html += `<span class="bad">✗ Waiting for input: ${ins}</span>`;
       } else {
         html += STATUS_TEXT[b.status] || STATUS_TEXT.ok;
       }
       if (def.prod) {
-        html += `<hr><div class="row"><span>Produces</span><b>${def.prod.n} ${RES_META[def.prod.out].icon} / ${def.prod.cycle}s</b></div>`;
+        html += `<hr><div class="row"><span>Produces</span><b>${def.prod.n} ${resIcon(def.prod.out)} / ${def.prod.cycle}s</b></div>`;
         if (def.prod.in) {
-          const ins = Object.entries(def.prod.in).map(([k, n]) => `${n} ${RES_META[k].icon}`).join(' + ');
+          const ins = Object.entries(def.prod.in).map(([k, n]) => `${n} ${resIcon(k)}`).join(' + ');
           html += `<div class="row"><span>Consumes</span><b>${ins}</b></div>`;
         }
         if (b.done) {
@@ -714,8 +733,9 @@ const UI = (() => {
         const fert = G.fertility[islandAt(b.x, b.y)];
         if (fert) {
           const items = FERTILITY_CROPS.map(c => {
-            const names = { sheep: '🐑 Sheep', grain: '🌾 Grain', potato: '🥔 Potatoes', spice: '🌶️ Spice' };
-            return `<span class="${fert[c] ? 'ok' : 'bad'}">${names[c]} ${fert[c] ? '✓' : '✗'}</span>`;
+            const names = { sheep: 'Sheep', grain: 'Grain', potato: 'Potatoes', spice: 'Spice' };
+            const cropIco = { sheep: 'wool', grain: 'grain', potato: 'potato', spice: 'spice' };
+            return `<span class="${fert[c] ? 'ok' : 'bad'}">${resIcon(cropIco[c])} ${names[c]} ${fert[c] ? '✓' : '✗'}</span>`;
           });
           html += `<br><b>This island:</b><br>` + items.join(' &nbsp; ');
         }
@@ -731,7 +751,7 @@ const UI = (() => {
     for (const g of GOODS) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${RES_META[g].icon} ${RES_META[g].name}</td>
+        <td>${resIcon(g)} ${RES_META[g].name}</td>
         <td id="trade-stock-${g}">0</td>
         <td id="trade-rate-${g}" class="rate">–</td>
         <td id="trade-buy-${g}">${TRADE[g].buy} 🪙</td>
@@ -797,7 +817,7 @@ const UI = (() => {
             const btn = d.left > 0
               ? `<button data-i="${i}" data-n="5">${d.mode === 'buy' ? 'Buy' : 'Sell'} 5</button>`
               : '<i>sold out</i>';
-            return `<tr><td>${RES_META[d.good].icon} ${RES_META[d.good].name}</td>` +
+            return `<tr><td>${resIcon(d.good)} ${RES_META[d.good].name}</td>` +
               `<td>${verb} at <b>${d.price} 🪙</b> <s>${base}</s></td>` +
               `<td>${d.left} left</td><td>${btn}</td></tr>`;
           });
@@ -838,7 +858,7 @@ const UI = (() => {
       const r = ratePerMin(g);
       const cls = r > 0.05 ? 'up' : r < -0.05 ? 'down' : '';
       const trend = r > 0.05 ? '▲ surplus' : r < -0.05 ? '▼ deficit' : '— balanced';
-      rows.push(`<tr><td>${RES_META[g].icon} ${RES_META[g].name}</td>` +
+      rows.push(`<tr><td>${resIcon(g)} ${RES_META[g].name}</td>` +
         `<td>${Math.floor(G.stock[g] || 0)}</td>` +
         `<td class="${cls}">${(r >= 0 ? '+' : '') + r.toFixed(1)}</td>` +
         `<td class="${cls}">${trend}</td></tr>`);
@@ -941,6 +961,12 @@ const UI = (() => {
       muted = !!prefs.muted;
       musicOn = prefs.music !== false;
     } catch (e) { /* defaults */ }
+
+    // generated icons for the static top-bar emojis (gold, population tiers)
+    document.querySelectorAll('[data-ico]').forEach(el => {
+      const u = typeof Assets !== 'undefined' && Assets.icon(el.dataset.ico);
+      if (u) el.innerHTML = `<img class="ricon" src="${u}" alt="">`;
+    });
 
     buildHud();
     buildTrade();

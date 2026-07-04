@@ -160,9 +160,12 @@ The game autosaves to your browser every 30 seconds.
 - `js/config.js` — all tuning: tiers, needs, buildings, prices, quests, achievements
 - `js/map.js` — seeded archipelago generation & fertilities
 - `js/game.js` — simulation (no DOM access)
-- `js/assets.js` + `assets/` — AI-generated raster sprites & seamless land
-  textures (see *AI art pipeline* below; the sea stays procedural — a
-  repeating texture reads as an obvious grid on open water)
+- `js/assets.js` + `assets/` — AI-generated raster sprites, seamless land
+  textures and UI icons (see *AI art pipeline* below; the sea stays
+  procedural — a repeating texture reads as an obvious grid on open water).
+  The HUD/toolbar icons are generated too: resources, population tiers and
+  utility buttons, with the building buttons reusing their own sprites.
+  Every emoji fallback remains for missing PNGs and headless runs.
 - `js/sprites.js` / `js/render.js` — procedural fallback art & isometric renderer
   (day/night, weather, particles, wildlife)
 - `js/music.js` — procedural soundtrack

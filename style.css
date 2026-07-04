@@ -286,6 +286,19 @@ html, body {
 .up { color: #34691f; }
 .down { color: #a33327; }
 
+/* ---------- Generated raster icons ---------- */
+.ricon {
+  width: 16px; height: 16px; object-fit: contain;
+  vertical-align: -3px; display: inline-block;
+}
+.tb-img {
+  width: 24px; height: 24px; object-fit: contain;
+  display: block; margin: 0 auto;
+}
+.tb-btn .tb-icon .ricon { width: 20px; height: 20px; }
+#hud-pop .ricon { width: 18px; height: 18px; vertical-align: -4px; }
+#hud-gold .ricon { width: 18px; height: 18px; vertical-align: -4px; }
+
 /* ---------- Modals ---------- */
 .modal {
   position: fixed; inset: 0; z-index: 30;
