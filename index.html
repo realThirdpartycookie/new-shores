@@ -42,6 +42,16 @@
 
 <!-- Bottom toolbar -->
 <div id="toolbar-wrap">
+  <!-- Neural-net advisor -->
+  <div id="advisor">
+    <div id="advisor-head">
+      <span>🧠 Advisor</span>
+      <button id="btn-autopilot" title="Let the neural net govern the island">🤖 Auto: OFF</button>
+    </div>
+    <div id="advisor-text">Thinking…</div>
+    <div id="advisor-last"></div>
+    <button id="advisor-apply" class="hidden">Do it</button>
+  </div>
   <div id="hint"></div>
   <div id="toolbar"></div>
 </div>
@@ -51,17 +61,6 @@
 
 <!-- Pause overlay -->
 <div id="pause-overlay" class="hidden"><span>⏸ Paused</span></div>
-
-<!-- Neural-net advisor -->
-<div id="advisor">
-  <div id="advisor-head">
-    <span>🧠 Advisor</span>
-    <button id="btn-autopilot" title="Let the neural net govern the island">🤖 Auto: OFF</button>
-  </div>
-  <div id="advisor-text">Thinking…</div>
-  <div id="advisor-last"></div>
-  <button id="advisor-apply" class="hidden">Do it</button>
-</div>
 
 <!-- Trade modal -->
 <div id="modal-trade" class="modal hidden">

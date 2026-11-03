@@ -116,8 +116,10 @@ ships shuttle between your harbours automatically.
 - **Carriers** haul finished goods along your roads to the Warehouse; **workers**
   chop, hammer and harvest at their buildings; **villagers** stroll the streets;
   rowboats bob and fish jump along the shoreline. The people are AI-generated
-  raster figures too, animated in-engine (bob, lean, swing) since diffusion
-  can't draw consistent walk cycles.
+  raster figures too: walkers play side-profile walk cycles (stride, passing,
+  stride, passing — each pose an edit of the character with Qwen-Image 2.1,
+  see `dev/imagegen/slice_people.py`), mirrored for screen-right travel — roads
+  run only ~27° off horizontal on screen, so a profile fits every direction.
 - **Juice**: placement dust, demolition rubble, completion pops, floating
   rewards, screen shake under cannon fire, and a HUD that flinches when stocks
   move.
@@ -162,7 +164,8 @@ The game autosaves to your browser every 30 seconds.
 - `js/game.js` — simulation (no DOM access)
 - `js/assets.js` + `assets/` — AI-generated raster sprites, seamless land
   textures and UI icons (see *AI art pipeline* below; the sea stays
-  procedural — a repeating texture reads as an obvious grid on open water).
+  procedural — one world-anchored fill plus a cached shallows/coast layer,
+  since per-tile water reads as an obvious grid).
   The HUD/toolbar icons are generated too: resources, population tiers and
   utility buttons, with the building buttons reusing their own sprites.
   Every emoji fallback remains for missing PNGs and headless runs.
@@ -181,8 +184,16 @@ The raster art is generated **fully locally** with
 - `manifest.py` — every asset with its prompt, seed and target sprite metrics
 - `generate.py` — batch generation (4 steps, 768² objects / 512² textures)
 - `postprocess.py` — background removal (border flood-fill + edge
-  decontamination), trim, downscale to 2× logical sprite size; makes the
+  decontamination; the model's grey cast shadows become translucent shadow
+  instead of pale slabs), ground-pad removal under trees, trim, downscale to
+  2× logical sprite size. Buildings are then **fitted to the 2:1 tile grid**:
+  FLUX's "isometric" camera sits higher (footprint edges slope ~0.65 instead
+  of 0.5), so each sprite is squashed vertically until its base edges match
+  the tile diamonds, padded so its front corner sits mid-sprite, and its
+  painted ground is cut back to the footprint (so it can't cover the
+  neighbour behind). Makes the
   terrain textures seamless; writes `assets/*.png` + `assets/manifest.js`
+  (`--only key1,key2` reprocesses a subset and keeps everything else)
 - `contactsheet.py` — grid overview of the raw generations
 
 Regenerate everything with:

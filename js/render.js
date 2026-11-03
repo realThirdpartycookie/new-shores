@@ -87,6 +87,7 @@ const Render = (() => {
   // re-scan the map for ambient-life spots (fish, glades, star water).
   function rebuildGroundCache() {
     mmDirty = true;
+    seaLayer = null;
     ambient = null;
     expCache = null;
     for (const k in boatSpots) delete boatSpots[k];
@@ -317,6 +318,71 @@ const Render = (() => {
     return terrainPats;
   }
 
+  /* Sea, in two parts so the per-frame cost stays one fill + one blit:
+   *  - open water: one world-anchored pattern (flat colour + faint waves on
+   *    a wrapping 6×6-tile canvas) — per-tile water sprites, each with its
+   *    own gradient, tiled into a visible diamond lattice;
+   *  - shallows + coastal halo: wide round-joined strokes that hide the
+   *    stair-step tile outline. Too slow to stroke every frame, and soft
+   *    anyway, so they're baked into a half-resolution layer of the whole map
+   *    (rebuilt with the ground cache). */
+  const SEA_DEEP = 'hsl(208, 58%, 25%)', SEA_SHALLOW = 'hsl(203, 53%, 32%)';
+  const SEA_K = 0.5; // sea layer resolution relative to world pixels
+  let seaPat = null, seaLayer = null;
+
+  function getSeaPattern() {
+    if (seaPat) return seaPat;
+    const W = TW * 6, H = TH * 6;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    x.fillStyle = SEA_DEEP; x.fillRect(0, 0, W, H);
+    const rng = mulberry32(977);
+    x.strokeStyle = 'rgba(140,180,215,0.10)'; x.lineWidth = 1;
+    for (let i = 0; i < 46; i++) {
+      const px = rng() * W, py = rng() * H, len = 4 + rng() * 5;
+      for (const ox of [-W, 0, W]) for (const oy of [-H, 0, H]) { // wrap
+        x.beginPath();
+        x.moveTo(px + ox - len, py + oy);
+        x.quadraticCurveTo(px + ox, py + oy - 1.4, px + ox + len, py + oy);
+        x.stroke();
+      }
+    }
+    seaPat = ctx.createPattern(c, 'repeat');
+    return seaPat;
+  }
+
+  function getSeaLayer() {
+    if (seaLayer) return seaLayer;
+    const ox = -MAPH * TW2 - 32, oy = -32;
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(((MAPW + MAPH) * TW2 + 64) * SEA_K);
+    c.height = Math.ceil(((MAPW + MAPH) * TH2 + 64) * SEA_K);
+    const x = c.getContext('2d');
+    x.setTransform(SEA_K, 0, 0, SEA_K, -ox * SEA_K, -oy * SEA_K);
+    const shallow = new Path2D(), land = new Path2D();
+    for (let ty = 0; ty < MAPH; ty++) {
+      for (let tx = 0; tx < MAPW; tx++) {
+        const t = G.tiles[idx(tx, ty)];
+        const p = t === TILE.WATER ? shallow : isLandTile(t) ? land : null;
+        if (!p) continue;
+        const sx = (tx - ty) * TW2, sy = (tx + ty) * TH2;
+        p.moveTo(sx, sy); p.lineTo(sx + TW2, sy + TH2); p.lineTo(sx, sy + TH); p.lineTo(sx - TW2, sy + TH2);
+        p.closePath();
+      }
+    }
+    x.lineJoin = 'round';
+    x.fillStyle = x.strokeStyle = SEA_SHALLOW;
+    x.lineWidth = 14; x.stroke(shallow); x.fill(shallow);
+    for (const [lw, a] of [[30, 0.10], [18, 0.14], [9, 0.20]]) {
+      x.strokeStyle = `rgba(120,210,215,${a})`;
+      x.lineWidth = lw;
+      x.stroke(land);
+    }
+    seaLayer = { c, ox, oy };
+    return seaLayer;
+  }
+
   function tilePath(sx, sy) {
     ctx.beginPath();
     ctx.moveTo(sx, sy);
@@ -343,46 +409,81 @@ const Render = (() => {
     };
   }
 
-  function drawRoadTile(x, y) {
-    const sx = (x - y) * TW2, sy = (x + y) * TH2;
-    const cxp = sx, cyp = sy + TH2;
-    const connected = G.roadOk[idx(x, y)];
-    const edge = connected ? '#8f7340' : '#7a6a4e';
-    const col = connected ? '#cdb288' : '#a89570';
+  let roadPat = null;
+  function getRoadPattern() {
+    if (roadPat) return roadPat;
+    const tex = typeof Assets !== 'undefined' && Assets.texture('dirt');
+    if (tex) roadPat = ctx.createPattern(tex.img, 'repeat');
+    return roadPat;
+  }
+
+  /* All visible road tiles are stroked as one network — every edge first,
+   * then every body — so segments join without per-tile cap seams, and the
+   * body is the world-anchored generated dirt texture running as one
+   * continuous ribbon. Disconnected roads get a grey veil on top, so the
+   * "no connection to the warehouse" state stays readable at a glance. */
+  function drawRoads(r) {
     const dirs = [
       [1, 0, TW2 / 2, TH2 / 2], [-1, 0, -TW2 / 2, -TH2 / 2],
       [0, 1, -TW2 / 2, TH2 / 2], [0, -1, TW2 / 2, -TH2 / 2],
     ];
-    const arms = [];
-    for (const [dx, dy, ox, oy] of dirs) {
-      const nx = x + dx, ny = y + dy;
-      if (!inBounds(nx, ny)) continue;
-      const nb = G.grid[idx(nx, ny)];
-      const link = G.roads[idx(nx, ny)] ||
-        (nb && (nb.key === 'warehouse' || nb.key === 'depot' || nb.key === 'market' || nb.key === 'kontor'));
-      if (link) arms.push([ox, oy]);
+    const all = new Path2D(), disc = new Path2D();
+    const tiles = [];
+    let any = false, anyDisc = false;
+    for (let y = r.y0; y <= r.y1; y++) {
+      for (let x = r.x0; x <= r.x1; x++) {
+        if (!G.roads[idx(x, y)]) continue;
+        const cxp = (x - y) * TW2, cyp = (x + y) * TH2 + TH2;
+        const connected = G.roadOk[idx(x, y)];
+        any = true;
+        anyDisc = anyDisc || !connected;
+        tiles.push([x, y, cxp, cyp]);
+        const seg = new Path2D();
+        let arms = 0;
+        for (const [dx, dy, ox, oy] of dirs) {
+          const nx = x + dx, ny = y + dy;
+          if (!inBounds(nx, ny)) continue;
+          const nb = G.grid[idx(nx, ny)];
+          const link = G.roads[idx(nx, ny)] ||
+            (nb && (nb.key === 'warehouse' || nb.key === 'depot' || nb.key === 'market' || nb.key === 'kontor'));
+          if (!link) continue;
+          arms++;
+          seg.moveTo(cxp, cyp);
+          seg.lineTo(cxp + ox, cyp + oy);
+        }
+        if (arms === 0) {
+          seg.moveTo(cxp - 1, cyp);
+          seg.lineTo(cxp + 1, cyp);
+        }
+        all.addPath(seg);
+        if (!connected) disc.addPath(seg);
+      }
     }
-    ctx.lineCap = 'round';
-    for (const [w, c] of [[13, edge], [9.5, col]]) {
-      ctx.strokeStyle = c;
+    if (!any) return;
+    ctx.lineCap = ctx.lineJoin = 'round';
+    const pat = getRoadPattern();
+    const passes = pat
+      ? [[19, 'rgba(70,52,26,0.22)'], [15, 'rgba(92,70,38,0.55)'], [12, pat]] // worn verge, rim, dirt
+      : [[13, '#8f7340'], [9.5, '#cdb288']];
+    for (const [w, c] of passes) {
       ctx.lineWidth = w;
-      ctx.beginPath();
-      if (arms.length === 0) {
-        ctx.moveTo(cxp - 1, cyp); ctx.lineTo(cxp + 1, cyp);
-      }
-      for (const [ox, oy] of arms) {
-        ctx.moveTo(cxp, cyp);
-        ctx.lineTo(cxp + ox, cyp + oy);
-      }
-      ctx.stroke();
+      ctx.strokeStyle = c;
+      ctx.stroke(all);
     }
-    // pebbles & ruts
-    const h = tileHash(x, y);
-    ctx.fillStyle = 'rgba(110,88,55,0.6)';
-    ctx.fillRect(cxp - 8 + h * 10, cyp - 2 + h * 3, 1.6, 1.1);
-    ctx.fillRect(cxp + 3 - h * 8, cyp + 1 - h * 4, 1.6, 1.1);
-    ctx.fillStyle = 'rgba(230,215,180,0.5)';
-    ctx.fillRect(cxp + 5 - h * 12, cyp - 1, 1.3, 0.9);
+    if (anyDisc) {
+      ctx.lineWidth = pat ? 15 : 13;
+      ctx.strokeStyle = 'rgba(70,72,82,0.45)';
+      ctx.stroke(disc);
+    }
+    if (pat) return; // the generated texture brings its own detail
+    for (const [x, y, cxp, cyp] of tiles) { // procedural pebbles & ruts
+      const h = tileHash(x, y);
+      ctx.fillStyle = 'rgba(110,88,55,0.6)';
+      ctx.fillRect(cxp - 8 + h * 10, cyp - 2 + h * 3, 1.6, 1.1);
+      ctx.fillRect(cxp + 3 - h * 8, cyp + 1 - h * 4, 1.6, 1.1);
+      ctx.fillStyle = 'rgba(230,215,180,0.5)';
+      ctx.fillRect(cxp + 5 - h * 12, cyp - 1, 1.3, 0.9);
+    }
   }
 
   function draw(time, toolActive) {
@@ -419,27 +520,71 @@ const Render = (() => {
      * path and filled with a world-anchored repeating pattern — that keeps
      * neighbouring tiles seamless. Falls back to per-tile procedural art. */
     const raster = typeof Assets !== 'undefined' && Assets.texture('grass') ? getTerrainPatterns() : null;
-    if (raster) {
-      const paths = {};
-      const e = 1.5; // slight overlap so terrain types meet without cracks
-      for (let y = r.y0; y <= r.y1; y++) {
-        for (let x = r.x0; x <= r.x1; x++) {
-          const t = G.tiles[idx(x, y)];
-          if (!raster[t]) continue; // water stays procedural
-          const p = paths[t] || (paths[t] = new Path2D());
-          const sx = (x - y) * TW2, sy = (x + y) * TH2;
-          p.moveTo(sx, sy - e);
-          p.lineTo(sx + TW2 + e, sy + TH2);
-          p.lineTo(sx, sy + TH + e);
-          p.lineTo(sx - TW2 - e, sy + TH2);
-          p.closePath();
+    ctx.fillStyle = getSeaPattern();
+    ctx.fillRect(-MAPH * TW2 - 64, -64, (MAPW + MAPH) * TW2 + 128, (MAPW + MAPH) * TH2 + 128);
+    const sl = getSeaLayer();
+    ctx.drawImage(sl.c, sl.ox, sl.oy, sl.c.width / SEA_K, sl.c.height / SEA_K);
+
+    const paths = {}, edges = {};
+    const e = 1.5; // slight overlap so terrain types meet without cracks
+    const look = t => t === TILE.TREE ? TILE.GRASS : t; // forest floor is grass
+    for (let y = r.y0; y <= r.y1; y++) {
+      for (let x = r.x0; x <= r.x1; x++) {
+        const t = G.tiles[idx(x, y)];
+        if (!raster || !raster[t]) continue; // procedural land: per-tile below
+        const p = paths[t] || (paths[t] = new Path2D());
+        const sx = (x - y) * TW2, sy = (x + y) * TH2;
+        p.moveTo(sx, sy - e);
+        p.lineTo(sx + TW2 + e, sy + TH2);
+        p.lineTo(sx, sy + TH + e);
+        p.lineTo(sx - TW2 - e, sy + TH2);
+        p.closePath();
+        // tiles on a boundary to other land get a rounding rim (see below)
+        const lt = look(t);
+        let border = false;
+        for (const n of [tileAt(x - 1, y), tileAt(x + 1, y), tileAt(x, y - 1), tileAt(x, y + 1)]) {
+          if (isLandTile(n) && look(n) !== lt) border = true;
+        }
+        if (border) {
+          const q = edges[t] || (edges[t] = new Path2D());
+          q.moveTo(sx, sy); q.lineTo(sx + TW2, sy + TH2); q.lineTo(sx, sy + TH); q.lineTo(sx - TW2, sy + TH2);
+          q.closePath();
         }
       }
-      for (const t of [TILE.SAND, TILE.GRASS, TILE.TREE, TILE.ROCK]) {
-        if (paths[t]) {
-          ctx.fillStyle = raster[t];
-          ctx.fill(paths[t]);
+    }
+    if (raster) {
+      ctx.lineJoin = 'round';
+      /* Coast: tile diamonds make a hard zigzag shoreline. Stroke the coastal
+       * land tiles with a wide, round-joined beach rim (filling the notches
+       * between diamonds), and the surf as a slightly wider white outline
+       * around that — so foam follows the smoothed shore, not tile edges. */
+      const coast = new Path2D();
+      for (let y = r.y0; y <= r.y1; y++) {
+        for (let x = r.x0; x <= r.x1; x++) {
+          if (!isLandTile(G.tiles[idx(x, y)])) continue;
+          if (isLandTile(tileAt(x - 1, y)) && isLandTile(tileAt(x + 1, y)) &&
+              isLandTile(tileAt(x, y - 1)) && isLandTile(tileAt(x, y + 1))) continue;
+          const sx = (x - y) * TW2, sy = (x + y) * TH2;
+          coast.moveTo(sx, sy); coast.lineTo(sx + TW2, sy + TH2);
+          coast.lineTo(sx, sy + TH); coast.lineTo(sx - TW2, sy + TH2);
+          coast.closePath();
         }
+      }
+      const fa = 0.55 + 0.25 * Math.sin(time * 1.7);
+      for (const [lw, c] of [[29, `rgba(235,248,255,${(fa * 0.35).toFixed(3)})`],
+                             [25, `rgba(240,250,255,${fa.toFixed(3)})`],
+                             [22, raster[TILE.SAND]]]) {
+        ctx.lineWidth = lw; ctx.strokeStyle = c; ctx.stroke(coast);
+      }
+      // land: boundary tiles get a round-joined rim in their own texture,
+      // drawn just before their fill — each later type laps over the earlier
+      // one's notches, so terrain borders read as soft curves, not stairs
+      ctx.lineWidth = 12;
+      for (const t of [TILE.SAND, TILE.GRASS, TILE.TREE, TILE.ROCK]) {
+        if (!paths[t]) continue;
+        ctx.fillStyle = ctx.strokeStyle = raster[t];
+        if (edges[t]) ctx.stroke(edges[t]);
+        ctx.fill(paths[t]);
       }
     }
     for (let y = r.y0; y <= r.y1; y++) {
@@ -447,23 +592,23 @@ const Render = (() => {
         const i = idx(x, y);
         const t = G.tiles[i];
         const sx = (x - y) * TW2, sy = (x + y) * TH2;
-        if (!raster || !raster[t]) {
+        if (!raster && isLandTile(t)) {
           const ts = Sprites.getTile(t, Math.floor(tileHash(x, y) * 8));
           ctx.drawImage(ts.c, sx - TW2 - PAD, sy - PAD, ts.w, ts.h);
         }
 
         if (t === TILE.WATER || t === TILE.DEEP) {
-          if (G.shore[i]) { // animated foam on the two upper edges
+          if (!raster && G.shore[i]) { // animated foam along the edges that touch land
             const fa = 0.32 + 0.22 * Math.sin(time * 1.7 + (x * 3 + y * 5) * 0.6);
+            const T = [sx, sy], R = [sx + TW2, sy + TH2], B = [sx, sy + TH], L = [sx - TW2, sy + TH2];
             ctx.strokeStyle = `rgba(235,248,255,${fa.toFixed(3)})`;
             ctx.lineWidth = 1.8;
+            ctx.lineCap = 'round';
             ctx.beginPath();
-            ctx.moveTo(sx - TW2, sy + TH2); ctx.lineTo(sx, sy); ctx.lineTo(sx + TW2, sy + TH2);
-            ctx.stroke();
-            ctx.strokeStyle = `rgba(235,248,255,${(fa * 0.45).toFixed(3)})`;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(sx - TW2 + 4, sy + TH2 + 3); ctx.lineTo(sx, sy + 4.5); ctx.lineTo(sx + TW2 - 4, sy + TH2 + 3);
+            for (const [nx, ny, p0, p1] of [[x - 1, y, L, T], [x, y - 1, T, R], [x + 1, y, R, B], [x, y + 1, B, L]]) {
+              if (!isLandTile(tileAt(nx, ny))) continue;
+              ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]);
+            }
             ctx.stroke();
           }
           const h = tileHash(x, y);
@@ -484,12 +629,11 @@ const Render = (() => {
       }
     }
 
+    ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
+
     /* ---- roads ---- */
-    for (let y = r.y0; y <= r.y1; y++) {
-      for (let x = r.x0; x <= r.x1; x++) {
-        if (G.roads[idx(x, y)]) drawRoadTile(x, y);
-      }
-    }
+    drawRoads(r);
+    ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
 
     /* ---- collect drawables ---- */
     const items = [];
@@ -1092,16 +1236,12 @@ const Render = (() => {
   function drawPerson(px, py, o, time) {
     if (typeof Assets !== 'undefined') {
       const name = o.peep || PEEP_FOR_ANIM[o.anim] || 'peep_v0';
-      // The sheet art walks toward the lower-left. Screen-up motion switches
-      // to the back-view set; screen-right motion mirrors horizontally.
-      let flip = false, back = false;
-      if (o.dir) {
-        back = (o.dir.dx + o.dir.dy) < 0;   // screen y-component of travel
-        flip = (o.dir.dx - o.dir.dy) > 0;   // screen x-component of travel
-      }
+      // Walk cycles are left-facing side profiles. Travel along a tile axis is
+      // only ~27° off horizontal on screen, so the profile fits all four
+      // directions; screen-right travel mirrors it.
+      const flip = !!o.dir && (o.dir.dx - o.dir.dy) > 0; // screen x-component of travel
       // real animation frames from the character sheet…
-      let frames = back ? Assets.peepFrames(name + '_back') : null;
-      if (!frames) frames = Assets.peepFrames(name);
+      const frames = Assets.peepFrames(name);
       if (frames) { drawFramePerson(frames, px, py, o, time, flip); return; }
       // …or a single figure animated with bob/lean/swing transforms
       const sp = Assets.get(name);
