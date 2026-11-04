@@ -106,7 +106,10 @@ html, body {
 
 /* ---------- neural-net advisor ---------- */
 #advisor {
-  position: absolute; left: 10px; bottom: calc(100% + 6px); width: 248px; pointer-events: auto;
+  /* lives in #toolbar-wrap and sits on its top edge, so it follows the
+   * toolbar however many rows it wraps to */
+  position: absolute; left: 10px; bottom: calc(100% + 10px); width: 248px;
+  pointer-events: auto;
   background: #f0e2c0; border: 2px solid #6b4f33; border-radius: 8px;
   color: #3a2a1a; font-size: 12.5px;
   box-shadow: 0 3px 12px rgba(0,0,0,0.35);

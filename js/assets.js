@@ -11,12 +11,12 @@
 
 const Assets = (() => {
   const entries = {};   // asset key -> {c, w, h, oy, chimney, lights, ready}
-  const textures = {};  // grass|sand|water|deep|rock -> {img, size, ready}
+  const textures = {};  // grass|sand|water|deep|rock|dirt -> {img, size, ready}
   let enabled = false;
   let assetRoot = 'assets/';
 
   // manifest texture keys -> terrain names used by sprites.js
-  const TEX_NAMES = { tex_grass: 'grass', tex_sand: 'sand', tex_water: 'water', tex_deep: 'deep', tex_rock: 'rock' };
+  const TEX_NAMES = { tex_grass: 'grass', tex_sand: 'sand', tex_water: 'water', tex_deep: 'deep', tex_rock: 'rock', tex_dirt: 'dirt' };
 
   /* Map the game's sprite keys onto generated asset keys. */
   function assetKeyFor(key) {

@@ -1,5 +1,6 @@
 .DS_Store
-dev/imagegen/.venv/
+dev/imagegen/.venv
+dev/imagegen/cand/
 dev/imagegen/raw/
 dev/imagegen/*.png
 dev/imagegen/*.jpg
