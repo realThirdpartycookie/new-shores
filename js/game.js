@@ -30,6 +30,8 @@ const G = {
   eventT: 120,          // countdown to the next random event
   stormT: 0,            // while > 0, fishers stay ashore
   victoryShown: false,
+  chartered: false,     // 25 Merchants: the Imperial Charter, end of the game
+  charterShown: false,
   popHist: [],          // [time, pioneers, settlers, citizens] every 5s
   popHistT: 0,
   autopilot: false,     // neural-net governor plays the game
@@ -73,6 +75,14 @@ function storageCap() {
 }
 
 // Warehouse / finished depots & kontors anchor roads, zones and ships.
+/* Add n of good g, capped at storage — but never reduce a stock that is
+ * already over the cap (e.g. after a Depot burned down). Returns the amount added. */
+function addStock(g, n) {
+  const before = G.stock[g] || 0;
+  G.stock[g] = Math.max(before, Math.min(storageCap(), before + n));
+  return G.stock[g] - before;
+}
+
 function isBase(b) {
   return b.key === 'warehouse' || ((b.key === 'depot' || b.key === 'kontor') && b.done);
 }
@@ -204,6 +214,7 @@ function canPlace(key, x, y, ignoreCost) {
       }
     }
     if (!coast) return { ok: false, why: 'A Kontor must be founded at the waterline' };
+    if (islandAt(x, y) === homeIslandId()) return { ok: false, why: 'A Kontor founds a colony — build it on another island' };
   }
   const rq = checkReq(def, x, y);
   if (!rq.ok) return rq;
@@ -218,11 +229,10 @@ function placeBuilding(key, x, y, free) {
   if (!free) payCost(def.cost);
 
   // clear trees under the footprint (+1 wood each)
-  const cap = storageCap();
   for (const [tx, ty] of footprintTiles(x, y, def.size)) {
     if (G.tiles[idx(tx, ty)] === TILE.TREE) {
       G.tiles[idx(tx, ty)] = TILE.GRASS;
-      G.stock.wood = Math.min(cap, G.stock.wood + 1);
+      addStock('wood', 1);
     }
   }
 
@@ -254,7 +264,7 @@ function placeRoad(x, y) {
   G.stock.gold -= ROAD_COST;
   if (t === TILE.TREE) {
     G.tiles[i] = TILE.GRASS;
-    G.stock.wood = Math.min(storageCap(), G.stock.wood + 1);
+    addStock('wood', 1);
   }
   G.roads[i] = 1;
   recomputeRoads();
@@ -285,10 +295,9 @@ function removeBuilding(b, refund = true) {
   G.buildings = G.buildings.filter(o => o !== b);
   if (G.selected === b.id) G.selected = null;
   if (refund) { // 50% back
-    const cap50 = storageCap();
     G.stock.gold += Math.floor((def.cost.gold || 0) * 0.5);
-    G.stock.wood = Math.min(cap50, G.stock.wood + Math.floor((def.cost.wood || 0) * 0.5));
-    G.stock.tools = Math.min(cap50, G.stock.tools + Math.floor((def.cost.tools || 0) * 0.5));
+    addStock('wood', Math.floor((def.cost.wood || 0) * 0.5));
+    addStock('tools', Math.floor((def.cost.tools || 0) * 0.5));
   }
   recomputeAll();
 }
@@ -464,11 +473,11 @@ function tickPopHist(dt) {
 
 const EVENTS = [
   { w: 3, run() {
-    G.stock.food = Math.min(storageCap(), G.stock.food + 15);
+    addStock('food', 15);
     toast('🎣 A rich shoal passes the coast! +15 food');
   } },
   { w: 3, run() {
-    G.stock.wood = Math.min(storageCap(), G.stock.wood + 12);
+    addStock('wood', 12);
     toast('🌊 Driftwood washes ashore: +12 wood');
   } },
   { w: 2, run() {
@@ -487,10 +496,11 @@ const EVENTS = [
     const houses = G.buildings.filter(b => b.key === 'house' && b.done && b.sick == null && b.res > 2);
     if (!houses.length) return;
     const h0 = houses[Math.floor(Math.random() * houses.length)];
-    let infected = 0;
+    sicken(h0);
+    let infected = 1;
     for (const h of houses) {
-      const d2 = (h.x - h0.x) ** 2 + (h.y - h0.y) ** 2;
-      if (h === h0 || (d2 <= 36 && infected < 3)) { sicken(h); infected++; }
+      if (h === h0 || infected >= 3) continue;
+      if ((h.x - h0.x) ** 2 + (h.y - h0.y) ** 2 <= 36) { sicken(h); infected++; }
     }
     toast('🤒 Plague breaks out! ' + infected + ' household(s) fall ill — chapels speed recovery', true, 'danger');
     sfx('error');
@@ -526,7 +536,7 @@ function ignite(b) {
 
 function fireCovered(b) {
   for (const f of G.buildings) {
-    if (f.key !== 'firehouse' || !f.done || !f.connected) continue;
+    if (f.key !== 'firehouse' || !f.done || !f.connected || f.fire != null) continue;
     const fd = BUILDINGS.firehouse;
     const cx = f.x + (fd.size - 1) / 2, cy = f.y + (fd.size - 1) / 2;
     if ((b.x - cx) ** 2 + (b.y - cy) ** 2 <= fd.radius * fd.radius) return true;
@@ -722,11 +732,10 @@ function checkQuests() {
   if (G.quest >= QUESTS.length) return;
   const q = QUESTS[G.quest];
   if (!q.check()) return;
-  const cap = storageCap();
   const parts = [];
   for (const k in q.reward) {
     if (k === 'gold') G.stock.gold += q.reward[k];
-    else G.stock[k] = Math.min(cap, (G.stock[k] || 0) + q.reward[k]);
+    else addStock(k, q.reward[k]);
     parts.push(`+${q.reward[k]} ${RES_META[k].icon}`);
   }
   G.quest++;
@@ -782,7 +791,7 @@ function tickProduction(b, def, dt, cap) {
       }
       for (const k in def.prod.in) G.stock[k] -= def.prod.in[k];
     }
-    G.stock[def.prod.out] = Math.min(cap, G.stock[def.prod.out] + def.prod.n);
+    addStock(def.prod.out, def.prod.n);
     if (def.prod.out === 'spice') G.spiceMade = (G.spiceMade || 0) + def.prod.n;
     b.t = 0;
     spawnCarrier(b, def.prod.out);
@@ -913,6 +922,11 @@ function checkUnlocks() {
     sfx('unlock');
     toast('👑 Your island flourishes! The Queen sends her regards.', true, 'good');
   }
+  if (!G.chartered && popOf(3) >= 25) { // the end of the game
+    G.chartered = true;
+    sfx('unlock');
+    toast('📜 25 Merchants! The Crown grants you the Imperial Charter.', true, 'good');
+  }
 }
 
 /* ---------------- achievements ---------------- */
@@ -944,11 +958,11 @@ function walkableTile(x, y) {
   return t === TILE.GRASS || t === TILE.SAND;
 }
 
-// Road tiles adjacent to the warehouse / finished depots.
+// Road tiles adjacent to the warehouse / finished depots & kontors.
 function baseAdjacentRoads() {
   const s = new Set();
   for (const b of G.buildings) {
-    if (b.key !== 'warehouse' && !(b.key === 'depot' && b.done)) continue;
+    if (!isBase(b)) continue;
     for (const [nx, ny] of footprintNeighbors(b.x, b.y, BUILDINGS[b.key].size)) {
       if (inBounds(nx, ny) && G.roads[idx(nx, ny)]) s.add(idx(nx, ny));
     }
@@ -1277,13 +1291,11 @@ function tickExpedition(dt) {
 }
 
 function resolveExpedition(e) {
-  const cap = storageCap();
   const mul = e.bonus ? 1.5 : 1;
   const roll = Math.random();
   if (roll < 0.35) {
     const g = GOODS[Math.floor(Math.random() * GOODS.length)];
-    const amt = Math.round((25 + Math.floor(Math.random() * 35)) * mul);
-    G.stock[g] = Math.min(cap, (G.stock[g] || 0) + amt);
+    const amt = addStock(g, Math.round((25 + Math.floor(Math.random() * 35)) * mul));
     toast(`⛵ The expedition returns with a rich haul: +${amt} ${RES_META[g].icon}`, true, 'good');
   } else if (roll < 0.6) {
     const amt = Math.round((250 + Math.floor(Math.random() * 300)) * mul);
@@ -1301,8 +1313,9 @@ function resolveExpedition(e) {
       f[c] = true;
       toast(`⛵ The expedition brings exotic seeds — your island can now support a ${BUILDINGS[c].name}!`, true, 'good');
     } else {
-      G.stock.gold += Math.round(200 * mul);
-      toast('⛵ The expedition returns with a modest bounty: +200 🪙', true, 'good');
+      const amt = Math.round(200 * mul);
+      G.stock.gold += amt;
+      toast(`⛵ The expedition returns with a modest bounty: +${amt} 🪙`, true, 'good');
     }
   } else {
     toast('⛵ The expedition returns empty-handed, with wild tales of sea monsters…', true);
@@ -1331,6 +1344,8 @@ function newGame(seed) {
   G.selected = null;
   G.flourished = false;
   G.victoryShown = false;
+  G.chartered = false;
+  G.charterShown = false;
   G.walkers = [];
   G.vilT = 0;
   G.nextWalkerId = 1;
@@ -1378,6 +1393,8 @@ function saveGame() {
       unlocked: G.unlocked,
       flourished: G.flourished,
       victoryShown: G.victoryShown,
+      chartered: G.chartered,
+      charterShown: G.charterShown,
       quest: G.quest,
       popHist: G.popHist,
       autopilot: G.autopilot,
@@ -1396,6 +1413,7 @@ function saveGame() {
       buildings: G.buildings.map(b => ({
         key: b.key, x: b.x, y: b.y, tier: b.tier, res: b.res,
         progress: b.progress, done: b.done,
+        sat: b.sat, acc: b.acc, fire: b.fire, sick: b.sick, sickT: b.sickT,
       })),
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -1431,6 +1449,8 @@ function loadGame() {
   G.unlocked = data.unlocked || 1;
   G.flourished = !!data.flourished;
   G.victoryShown = !!data.victoryShown;
+  G.chartered = !!data.chartered;
+  G.charterShown = !!data.charterShown;
   G.quest = data.quest || 0;
   G.selected = null;
   G.walkers = [];
@@ -1482,10 +1502,12 @@ function loadGame() {
       id: G.nextId++, key: s.key, x: s.x, y: s.y,
       progress: s.progress, done: s.done,
       tier: s.tier || 0, res: s.res || 0,
-      t: 0, acc: {}, sat: {}, svc: {},
+      t: 0, acc: s.acc || {}, sat: s.sat || {}, svc: {},
       growT: 0, conT: 0, carrierOut: false,
       connected: false, cond: true, status: 'ok', condWhy: '',
     };
+    if (s.fire != null) b.fire = s.fire;
+    if (s.sick != null) { b.sick = s.sick; b.sickT = s.sickT || 0; }
     const def = BUILDINGS[b.key];
     if (def) {
       for (const [tx, ty] of footprintTiles(b.x, b.y, def.size)) {

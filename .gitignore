@@ -4,3 +4,10 @@ dev/imagegen/raw/
 dev/imagegen/*.png
 dev/imagegen/*.jpg
 dev/imagegen/__pycache__/manifest.cpython-312.pyc
+# RL training: keep the best and final checkpoint per run, not the periodic ones
+dev/rl-weights-*-[0-9]*.json
+dev/rl-weights-100.json
+dev/logs/
+# paper: generated from paper.src.html by paper/build.js
+paper/paper.html
+paper/paper.page.html

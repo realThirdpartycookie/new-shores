@@ -335,7 +335,8 @@ const UI = (() => {
       }
     }
 
-    if (G.flourished && !G.victoryShown) showVictory();
+    if (G.flourished && !G.victoryShown) showVictory('flourish');
+    else if (G.chartered && !G.charterShown) showVictory('charter');
 
     // live-refresh open data modals (~1s cadence; updateHUD runs every 0.15s)
     statsRefreshT += 0.15;
@@ -383,8 +384,16 @@ const UI = (() => {
   }
   let statsRefreshT = 0;
 
-  function showVictory() {
-    G.victoryShown = true;
+  const VICTORY = {
+    flourish: ['👑 Your island flourishes!', 'The Queen sends her regards — 60 Citizens call your island home.'],
+    charter: ['📜 The Imperial Charter', '25 Merchants trade from your harbours — the Crown grants your colony its charter. You have played New Shores to the end!'],
+  };
+
+  function showVictory(kind) {
+    if (kind === 'charter') G.charterShown = true;
+    else G.victoryShown = true;
+    $('victory-title').textContent = VICTORY[kind][0];
+    $('victory-line').textContent = VICTORY[kind][1];
     const mins = Math.floor(G.time / 60);
     const houses = G.buildings.filter(b => b.key === 'house').length;
     const rows = [

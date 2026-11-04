@@ -14,10 +14,12 @@ const AI = (() => {
   const BUILD_ACTIONS = ['house', 'market', 'chapel', 'woodcutter', 'fisher', 'hunter',
     'sheep', 'weaver', 'grain', 'bakery', 'mine', 'toolmaker', 'tavern', 'potato', 'distillery', 'depot',
     'watchtower', 'firehouse'];
-  const ACTIONS = ['wait', ...BUILD_ACTIONS.map(k => 'build:' + k), 'sell', 'buytools', 'buyfood'];
+  // Append-only: a net with fewer outputs simply never picks the newer actions.
+  const ACTIONS = ['wait', ...BUILD_ACTIONS.map(k => 'build:' + k), 'sell', 'buytools', 'buyfood', 'buyliquor',
+    'build:kontor', 'build:spice', 'buycloth'];
 
-  // Frozen feature space: the net was trained before spice/Merchants existed.
-  // New goods must NOT change the feature vector or the weights go stale.
+  // Append-only feature space: a net reads only as many inputs as it was
+  // built for, so new features go at the END and older nets keep working.
   const AI_GOODS = GOODS.slice(0, 9);
 
   let net = null;
@@ -82,10 +84,17 @@ const AI = (() => {
     f.push(clamp((countOf('mine') - countOf('toolmaker')) / 3, -1, 1));
     f.push(clamp((hs.capr ? hs.res / hs.capr : 1) - 0.55, -1, 1));              // fullness margin
     f.push(G.pirateSeen ? 1 : 0);
-    f.push(clamp(countOf('watchtower') / 3, 0, 1));
-    return f;                                                                   // = 57
+    f.push(clamp(countOf('watchtower') / 3, 0, 1));                             // = 61
+    // colonies, spice and Merchants (appended)
+    f.push(clamp((G.stock.spice || 0) / storageCap(), 0, 1));
+    f.push(clamp(ratePerMin('spice') / 20, -1, 1));
+    f.push(popOf(3) / 100);
+    f.push(G.unlocked >= 4 ? 1 : 0);
+    f.push(clamp(countOf('kontor') / 2, 0, 1));
+    f.push(clamp(countOf('spice') / 10, 0, 1));
+    return f;
   }
-  const FEATURE_COUNT = 61;
+  const FEATURE_COUNT = 67;
 
   /* ---------------- placement: where to build ---------------- */
 
@@ -116,7 +125,7 @@ const AI = (() => {
     const inFootprint = (tx, ty) => tx >= x && tx < x + size && ty >= y && ty < y + size;
     const passable = i => {
       const t = G.tiles[i];
-      if (G.grid[i]) return false;
+      if (G.grid[i] || !G.zone[i]) return false;
       return G.roads[i] === 1 || t === TILE.GRASS || t === TILE.TREE || t === TILE.SAND;
     };
     const parent = new Map();
@@ -150,12 +159,93 @@ const AI = (() => {
     return path.reverse();
   }
 
+  /* Colony site: the coast of a foreign island without a Kontor yet, best one
+   * that grows spice (Merchants) and potatoes (liquor), then the nearest. */
+  function colonyIslands() {
+    const home = homeIslandId(), taken = new Set();
+    for (const b of G.buildings) if (b.key === 'kontor') taken.add(islandAt(b.x, b.y));
+    return Object.keys(G.fertility).map(Number).filter(id => id && id !== home && !taken.has(id));
+  }
+
+  function findKontorSpot() {
+    const wh = G.buildings.find(b => b.key === 'warehouse');
+    const open = new Set(colonyIslands());
+    let best = null;
+    for (let y = 0; y < MAPH; y++) {
+      for (let x = 0; x < MAPW; x++) {
+        const isl = islandAt(x, y);
+        if (!open.has(isl) || !canPlace('kontor', x, y).ok) continue;
+        const f = G.fertility[isl];
+        const score = (f.spice ? 100 : 0) + (f.potato ? 30 : 0) - Math.hypot(x - wh.x, y - wh.y) / 4;
+        if (!best || score > best.score) best = { x, y, score, roadPlan: null };
+      }
+    }
+    return best;
+  }
+
+  // Street grid: every 5th row and column (counted from the Warehouse) stays
+  // free for roads. Packed buildings otherwise enclose whole areas of free
+  // land that no road can ever reach; blocks of 4 still fit 2×2 buildings.
+  function isStreet(wh, tx, ty) {
+    return !!wh && (((tx - wh.x + 1) % 5 + 5) % 5 === 0 || ((ty - wh.y + 1) % 5 + 5) % 5 === 0);
+  }
+
+  /* Last resort for a service building in a full town: tear down up to 4
+   * houses where it would cover the most houses that lack the service. */
+  function clearSpotFor(key) {
+    const def = BUILDINGS[key];
+    const wh = G.buildings.find(b => b.key === 'warehouse');
+    const home = homeIslandId(), ring = baseAdjacentSet();
+    const houses = G.buildings.filter(b => b.key === 'house' && islandAt(b.x, b.y) === home);
+    const lacking = houses.filter(h => !h.svc[def.service]);
+    let best = null;
+    const tried = new Set();
+    for (const h of lacking) {
+      for (let y = h.y - def.size + 1; y <= h.y; y++) {
+        for (let x = h.x - def.size + 1; x <= h.x; x++) {
+          if (tried.has(x + ',' + y)) continue;
+          tried.add(x + ',' + y);
+          const doomed = new Set();
+          let ok = true;
+          for (const [tx, ty] of footprintTiles(x, y, def.size)) {
+            const i = idx(tx, ty);
+            const b = G.grid[i], t = G.tiles[i];
+            if (!inBounds(tx, ty) || !G.zone[i] || G.roads[i] || ring.has(i) || isStreet(wh, tx, ty)) { ok = false; break; }
+            if (b) { if (b.key !== 'house') { ok = false; break; } doomed.add(b); continue; }
+            if (t !== TILE.GRASS && t !== TILE.TREE) { ok = false; break; }
+          }
+          if (!ok || doomed.size > 4) continue;
+          const cx = x + (def.size - 1) / 2, cy = y + (def.size - 1) / 2;
+          const covers = lacking.filter(o => !doomed.has(o) && (o.x - cx) ** 2 + (o.y - cy) ** 2 <= def.radius ** 2).length;
+          const score = covers - doomed.size * 2;
+          if (covers > doomed.size * 2 && (!best || score > best.score)) best = { x, y, score, doomed };
+        }
+      }
+    }
+    if (!best) return false;
+    for (const b of best.doomed) removeBuilding(b);
+    const plan = planRoad(best.x, best.y, def.size);
+    if (!plan || !canPlace(key, best.x, best.y).ok) return false;
+    for (const [rx, ry] of plan) if (!placeRoad(rx, ry)) return false;
+    return placeBuilding(key, best.x, best.y).ok;
+  }
+
   function findSpotFor(key) {
+    if (key === 'kontor') return findKontorSpot();
     const def = BUILDINGS[key];
     const centers = G.buildings.filter(b =>
       b.key === 'warehouse' || ((b.key === 'market' || b.key === 'depot' || b.key === 'kontor') && b.done));
     const services = G.buildings.filter(b => BUILDINGS[b.key].service && b.done);
     const seen = new Set();
+    // Keep the tiles around the Warehouse/Depots/Kontors free for roads: once
+    // buildings fill that ring, no road can ever connect to the base again.
+    const baseRing = baseAdjacentSet();
+    const wh = G.buildings.find(b => b.key === 'warehouse');
+    // Colonies are small: keep them for what only they can grow (spice, and
+    // the crops the home island lacks), or fishers and houses fill them up.
+    const home = homeIslandId();
+    const colonyOnly = FERTILITY_CROPS.includes(key) && !(G.fertility[home] || {})[key];
+    const street = (tx, ty) => isStreet(wh, tx, ty);
     let best = null;
 
     for (const c of centers) {
@@ -167,9 +257,15 @@ const AI = (() => {
             const k = x + ',' + y;
             if (seen.has(k)) continue;
             seen.add(k);
+            if ((islandAt(x, y) !== home) !== colonyOnly) continue;
             if (!canPlace(key, x, y).ok) continue;
+            // farms keep a margin of pasture: later roads and fields nibble at it
+            const pasture = def.req && def.req.pasture;
+            if (pasture && countPastureAround(x, y, def.size, pasture.r) < pasture.n + 4) continue;
+            if (footprintTiles(x, y, def.size).some(([tx, ty]) => baseRing.has(idx(tx, ty)) || street(tx, ty))) continue;
 
-            let score = -r * 0.3;
+            // depots extend the building zone, so they go to its edge
+            let score = key === 'depot' ? r * 0.5 : -r * 0.3;
             let roadPlan = null;
             if (def.needsRoad) {
               roadPlan = planRoad(x, y, def.size);
@@ -226,6 +322,10 @@ const AI = (() => {
     if (action === 'sell') return !!surplusGood();
     if (action === 'buytools') return G.stock.gold > 300 && G.stock.tools < 10;
     if (action === 'buyfood') return G.stock.gold > 200 && G.stock.food < 10 && ratePerMin('food') < 0.5;
+    // 1 liquor in stock is all an upgrade to Citizens needs — islands without
+    // potatoes can still climb by importing it
+    if (action === 'buyliquor') return G.unlocked >= 3 && G.stock.gold > 400 && G.stock.liquor < 5;
+    if (action === 'buycloth') return G.unlocked >= 2 && G.stock.gold > 400 && G.stock.cloth < 10;
     const key = action.slice(6);
     const def = BUILDINGS[key];
     if (!def || def.tier > G.unlocked) return false;
@@ -236,7 +336,9 @@ const AI = (() => {
       if (key === 'tavern' && countOf('tavern') > countOf('house') / 10) return false;
       if (key === 'market' && countOf('market') > countOf('house') / 6 + 1) return false;
     }
-    if (key === 'depot' && countOf('depot') >= 2) return false;
+    if (key === 'depot' && countOf('depot') >= 4) return false;
+    if (key === 'kontor' && (countOf('kontor') >= 2 || !colonyIslands().length)) return false;
+    if (key === 'spice' && !G.buildings.some(b => b.key === 'kontor' && b.done)) return false;
     return true;
   }
 
@@ -249,13 +351,22 @@ const AI = (() => {
     }
     if (action === 'buytools') return buyGood('tools', 5);
     if (action === 'buyfood') return buyGood('food', 5);
+    if (action === 'buyliquor') return buyGood('liquor', 5);
+    if (action === 'buycloth') return buyGood('cloth', 5);
     const key = action.slice(6);
     const spot = findSpotFor(key);
     if (!spot) {
+      if (BUILDINGS[key].service && canAfford(BUILDINGS[key].cost) && clearSpotFor(key)) return true;
       spotFail[key] = G.time + 45; // try something else for a while
+      // no room left in the zone: a depot at its edge makes some
+      if (key !== 'depot' && roughValid('build:depot')) execute('build:depot');
       return false;
     }
-    if (spot.roadPlan) for (const [rx, ry] of spot.roadPlan) placeRoad(rx, ry);
+    if (spot.roadPlan) {
+      for (const [rx, ry] of spot.roadPlan) {
+        if (!placeRoad(rx, ry)) { spotFail[key] = G.time + 20; return false; }
+      }
+    }
     const ok = placeBuilding(key, spot.x, spot.y).ok;
     if (!ok) spotFail[key] = G.time + 20;
     return ok;
@@ -346,9 +457,12 @@ const AI = (() => {
     'build:watchtower': () => 'Pirates prowl these waters — cannons will greet them.',
     'build:firehouse': () => 'A fire brigade saves buildings before they burn down.',
     'build:kontor': () => 'Found a colony to use another island\'s fertile ground.',
+    'build:spice': () => 'Spice from the colony lets Citizens become Merchants.',
     sell: () => `Selling surplus ${surplusGood() ? RES_META[surplusGood()].name.toLowerCase() : 'goods'} for gold.`,
     buytools: () => 'Buying tools from the trader to keep building.',
     buyfood: () => 'Emergency rations — the pantry is nearly empty!',
+    buyliquor: () => 'Importing liquor so settlers can become Citizens.',
+    buycloth: () => 'The weavers can\'t keep up — importing cloth with spare gold.',
     wait: () => 'All is well — watching the town grow.',
   };
 
@@ -366,6 +480,8 @@ const AI = (() => {
     } else if (action === 'sell') label = '🚢 Sell surplus';
     else if (action === 'buytools') label = '🚢 Buy 5 tools';
     else if (action === 'buyfood') label = '🚢 Buy 5 food';
+    else if (action === 'buyliquor') label = '🚢 Buy 5 liquor';
+    else if (action === 'buycloth') label = '🚢 Buy 5 cloth';
     suggestion = { action, reason, label };
   }
 

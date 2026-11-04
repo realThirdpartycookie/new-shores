@@ -1,0 +1,1562 @@
+[
+ {
+  "iter": 1,
+  "episodes": 56,
+  "steps": 50400,
+  "trainProgress": 1362,
+  "minutes": 0.6
+ },
+ {
+  "iter": 2,
+  "episodes": 112,
+  "steps": 100800,
+  "trainProgress": 1457,
+  "minutes": 1.3
+ },
+ {
+  "iter": 3,
+  "episodes": 168,
+  "steps": 151200,
+  "trainProgress": 1809,
+  "minutes": 1.9
+ },
+ {
+  "iter": 4,
+  "episodes": 224,
+  "steps": 201600,
+  "trainProgress": 1805,
+  "minutes": 2.5
+ },
+ {
+  "iter": 5,
+  "episodes": 280,
+  "steps": 252000,
+  "trainProgress": 1795,
+  "minutes": 3.3
+ },
+ {
+  "iter": 6,
+  "episodes": 336,
+  "steps": 302400,
+  "trainProgress": 1960,
+  "minutes": 3.8
+ },
+ {
+  "iter": 7,
+  "episodes": 392,
+  "steps": 352800,
+  "trainProgress": 2079,
+  "minutes": 4.4
+ },
+ {
+  "iter": 8,
+  "episodes": 448,
+  "steps": 403200,
+  "trainProgress": 1989,
+  "minutes": 5
+ },
+ {
+  "iter": 9,
+  "episodes": 504,
+  "steps": 453600,
+  "trainProgress": 2221,
+  "minutes": 5.5
+ },
+ {
+  "iter": 10,
+  "episodes": 560,
+  "steps": 504000,
+  "trainProgress": 2361,
+  "minutes": 6,
+  "valProgress": 2682,
+  "valPops": [
+   499,
+   240,
+   106,
+   83
+  ],
+  "valGreedyProgress": 1008
+ },
+ {
+  "iter": 11,
+  "episodes": 616,
+  "steps": 554400,
+  "trainProgress": 2406,
+  "minutes": 6.8
+ },
+ {
+  "iter": 12,
+  "episodes": 672,
+  "steps": 604800,
+  "trainProgress": 2470,
+  "minutes": 7.3
+ },
+ {
+  "iter": 13,
+  "episodes": 728,
+  "steps": 655200,
+  "trainProgress": 2417,
+  "minutes": 7.8
+ },
+ {
+  "iter": 14,
+  "episodes": 784,
+  "steps": 705600,
+  "trainProgress": 2536,
+  "minutes": 8.3
+ },
+ {
+  "iter": 15,
+  "episodes": 840,
+  "steps": 756000,
+  "trainProgress": 2528,
+  "minutes": 8.8
+ },
+ {
+  "iter": 16,
+  "episodes": 896,
+  "steps": 806400,
+  "trainProgress": 2519,
+  "minutes": 9.3
+ },
+ {
+  "iter": 17,
+  "episodes": 952,
+  "steps": 856800,
+  "trainProgress": 2467,
+  "minutes": 9.9
+ },
+ {
+  "iter": 18,
+  "episodes": 1008,
+  "steps": 907200,
+  "trainProgress": 2659,
+  "minutes": 10.4
+ },
+ {
+  "iter": 19,
+  "episodes": 1064,
+  "steps": 957600,
+  "trainProgress": 2635,
+  "minutes": 10.9
+ },
+ {
+  "iter": 20,
+  "episodes": 1120,
+  "steps": 1008000,
+  "trainProgress": 2690,
+  "minutes": 11.5,
+  "valProgress": 2290,
+  "valPops": [
+   340,
+   269,
+   84,
+   64
+  ],
+  "valGreedyProgress": 0
+ },
+ {
+  "iter": 21,
+  "episodes": 1176,
+  "steps": 1058400,
+  "trainProgress": 2821,
+  "minutes": 12.2
+ },
+ {
+  "iter": 22,
+  "episodes": 1232,
+  "steps": 1108800,
+  "trainProgress": 2623,
+  "minutes": 12.7
+ },
+ {
+  "iter": 23,
+  "episodes": 1288,
+  "steps": 1159200,
+  "trainProgress": 2454,
+  "minutes": 13.2
+ },
+ {
+  "iter": 24,
+  "episodes": 1344,
+  "steps": 1209600,
+  "trainProgress": 2607,
+  "minutes": 13.7
+ },
+ {
+  "iter": 25,
+  "episodes": 1400,
+  "steps": 1260000,
+  "trainProgress": 2414,
+  "minutes": 14.2
+ },
+ {
+  "iter": 26,
+  "episodes": 1456,
+  "steps": 1310400,
+  "trainProgress": 2547,
+  "minutes": 14.7
+ },
+ {
+  "iter": 27,
+  "episodes": 1512,
+  "steps": 1360800,
+  "trainProgress": 2459,
+  "minutes": 15.2
+ },
+ {
+  "iter": 28,
+  "episodes": 1568,
+  "steps": 1411200,
+  "trainProgress": 2725,
+  "minutes": 15.6
+ },
+ {
+  "iter": 29,
+  "episodes": 1624,
+  "steps": 1461600,
+  "trainProgress": 2765,
+  "minutes": 16.1
+ },
+ {
+  "iter": 30,
+  "episodes": 1680,
+  "steps": 1512000,
+  "trainProgress": 2581,
+  "minutes": 16.6,
+  "valProgress": 2502,
+  "valPops": [
+   367,
+   204,
+   101,
+   92
+  ],
+  "valGreedyProgress": 1
+ },
+ {
+  "iter": 31,
+  "episodes": 1736,
+  "steps": 1562400,
+  "trainProgress": 2708,
+  "minutes": 17.3
+ },
+ {
+  "iter": 32,
+  "episodes": 1792,
+  "steps": 1612800,
+  "trainProgress": 2557,
+  "minutes": 17.8
+ },
+ {
+  "iter": 33,
+  "episodes": 1848,
+  "steps": 1663200,
+  "trainProgress": 2775,
+  "minutes": 18.3
+ },
+ {
+  "iter": 34,
+  "episodes": 1904,
+  "steps": 1713600,
+  "trainProgress": 2862,
+  "minutes": 18.8
+ },
+ {
+  "iter": 35,
+  "episodes": 1960,
+  "steps": 1764000,
+  "trainProgress": 2652,
+  "minutes": 19.2
+ },
+ {
+  "iter": 36,
+  "episodes": 2016,
+  "steps": 1814400,
+  "trainProgress": 2634,
+  "minutes": 19.7
+ },
+ {
+  "iter": 37,
+  "episodes": 2072,
+  "steps": 1864800,
+  "trainProgress": 2506,
+  "minutes": 20.2
+ },
+ {
+  "iter": 38,
+  "episodes": 2128,
+  "steps": 1915200,
+  "trainProgress": 2507,
+  "minutes": 20.7
+ },
+ {
+  "iter": 39,
+  "episodes": 2184,
+  "steps": 1965600,
+  "trainProgress": 2633,
+  "minutes": 21.2
+ },
+ {
+  "iter": 40,
+  "episodes": 2240,
+  "steps": 2016000,
+  "trainProgress": 2715,
+  "minutes": 21.7,
+  "valProgress": 2755,
+  "valPops": [
+   518,
+   260,
+   122,
+   72
+  ],
+  "valGreedyProgress": 1793
+ },
+ {
+  "iter": 41,
+  "episodes": 2296,
+  "steps": 2066400,
+  "trainProgress": 2686,
+  "minutes": 22.4
+ },
+ {
+  "iter": 42,
+  "episodes": 2352,
+  "steps": 2116800,
+  "trainProgress": 2732,
+  "minutes": 22.9
+ },
+ {
+  "iter": 43,
+  "episodes": 2408,
+  "steps": 2167200,
+  "trainProgress": 2725,
+  "minutes": 23.3
+ },
+ {
+  "iter": 44,
+  "episodes": 2464,
+  "steps": 2217600,
+  "trainProgress": 2711,
+  "minutes": 23.8
+ },
+ {
+  "iter": 45,
+  "episodes": 2520,
+  "steps": 2268000,
+  "trainProgress": 2839,
+  "minutes": 24.2
+ },
+ {
+  "iter": 46,
+  "episodes": 2576,
+  "steps": 2318400,
+  "trainProgress": 2792,
+  "minutes": 24.7
+ },
+ {
+  "iter": 47,
+  "episodes": 2632,
+  "steps": 2368800,
+  "trainProgress": 2717,
+  "minutes": 25.2
+ },
+ {
+  "iter": 48,
+  "episodes": 2688,
+  "steps": 2419200,
+  "trainProgress": 2887,
+  "minutes": 25.7
+ },
+ {
+  "iter": 49,
+  "episodes": 2744,
+  "steps": 2469600,
+  "trainProgress": 2795,
+  "minutes": 26.2
+ },
+ {
+  "iter": 50,
+  "episodes": 2800,
+  "steps": 2520000,
+  "trainProgress": 2672,
+  "minutes": 26.7,
+  "valProgress": 2933,
+  "valPops": [
+   364,
+   250,
+   120,
+   110
+  ],
+  "valGreedyProgress": 2130
+ },
+ {
+  "iter": 51,
+  "episodes": 2856,
+  "steps": 2570400,
+  "trainProgress": 2631,
+  "minutes": 27.4
+ },
+ {
+  "iter": 52,
+  "episodes": 2912,
+  "steps": 2620800,
+  "trainProgress": 2541,
+  "minutes": 27.9
+ },
+ {
+  "iter": 53,
+  "episodes": 2968,
+  "steps": 2671200,
+  "trainProgress": 2609,
+  "minutes": 28.3
+ },
+ {
+  "iter": 54,
+  "episodes": 3024,
+  "steps": 2721600,
+  "trainProgress": 2709,
+  "minutes": 28.8
+ },
+ {
+  "iter": 55,
+  "episodes": 3080,
+  "steps": 2772000,
+  "trainProgress": 2541,
+  "minutes": 29.3
+ },
+ {
+  "iter": 56,
+  "episodes": 3136,
+  "steps": 2822400,
+  "trainProgress": 2546,
+  "minutes": 29.7
+ },
+ {
+  "iter": 57,
+  "episodes": 3192,
+  "steps": 2872800,
+  "trainProgress": 2521,
+  "minutes": 30.2
+ },
+ {
+  "iter": 58,
+  "episodes": 3248,
+  "steps": 2923200,
+  "trainProgress": 2553,
+  "minutes": 30.7
+ },
+ {
+  "iter": 59,
+  "episodes": 3304,
+  "steps": 2973600,
+  "trainProgress": 2733,
+  "minutes": 31.1
+ },
+ {
+  "iter": 60,
+  "episodes": 3360,
+  "steps": 3024000,
+  "trainProgress": 2695,
+  "minutes": 31.6,
+  "valProgress": 2888,
+  "valPops": [
+   434,
+   263,
+   122,
+   93
+  ],
+  "valGreedyProgress": 1839
+ },
+ {
+  "iter": 61,
+  "episodes": 3416,
+  "steps": 3074400,
+  "trainProgress": 2686,
+  "minutes": 32.4
+ },
+ {
+  "iter": 62,
+  "episodes": 3472,
+  "steps": 3124800,
+  "trainProgress": 2672,
+  "minutes": 32.8
+ },
+ {
+  "iter": 63,
+  "episodes": 3528,
+  "steps": 3175200,
+  "trainProgress": 2679,
+  "minutes": 33.3
+ },
+ {
+  "iter": 64,
+  "episodes": 3584,
+  "steps": 3225600,
+  "trainProgress": 2737,
+  "minutes": 33.7
+ },
+ {
+  "iter": 65,
+  "episodes": 3640,
+  "steps": 3276000,
+  "trainProgress": 2597,
+  "minutes": 34.2
+ },
+ {
+  "iter": 66,
+  "episodes": 3696,
+  "steps": 3326400,
+  "trainProgress": 2734,
+  "minutes": 34.7
+ },
+ {
+  "iter": 67,
+  "episodes": 3752,
+  "steps": 3376800,
+  "trainProgress": 2664,
+  "minutes": 35.2
+ },
+ {
+  "iter": 68,
+  "episodes": 3808,
+  "steps": 3427200,
+  "trainProgress": 2477,
+  "minutes": 35.6
+ },
+ {
+  "iter": 69,
+  "episodes": 3864,
+  "steps": 3477600,
+  "trainProgress": 2834,
+  "minutes": 36.2
+ },
+ {
+  "iter": 70,
+  "episodes": 3920,
+  "steps": 3528000,
+  "trainProgress": 2755,
+  "minutes": 36.6,
+  "valProgress": 2788,
+  "valPops": [
+   534,
+   220,
+   105,
+   97
+  ],
+  "valGreedyProgress": 1810
+ },
+ {
+  "iter": 71,
+  "episodes": 3976,
+  "steps": 3578400,
+  "trainProgress": 2792,
+  "minutes": 37.4
+ },
+ {
+  "iter": 72,
+  "episodes": 4032,
+  "steps": 3628800,
+  "trainProgress": 2684,
+  "minutes": 37.9
+ },
+ {
+  "iter": 73,
+  "episodes": 4088,
+  "steps": 3679200,
+  "trainProgress": 2810,
+  "minutes": 38.3
+ },
+ {
+  "iter": 74,
+  "episodes": 4144,
+  "steps": 3729600,
+  "trainProgress": 2649,
+  "minutes": 39
+ },
+ {
+  "iter": 75,
+  "episodes": 4200,
+  "steps": 3780000,
+  "trainProgress": 2707,
+  "minutes": 39.5
+ },
+ {
+  "iter": 76,
+  "episodes": 4256,
+  "steps": 3830400,
+  "trainProgress": 2659,
+  "minutes": 39.9
+ },
+ {
+  "iter": 77,
+  "episodes": 4312,
+  "steps": 3880800,
+  "trainProgress": 2896,
+  "minutes": 40.4
+ },
+ {
+  "iter": 78,
+  "episodes": 4368,
+  "steps": 3931200,
+  "trainProgress": 2860,
+  "minutes": 40.9
+ },
+ {
+  "iter": 79,
+  "episodes": 4424,
+  "steps": 3981600,
+  "trainProgress": 2509,
+  "minutes": 41.4
+ },
+ {
+  "iter": 80,
+  "episodes": 4480,
+  "steps": 4032000,
+  "trainProgress": 2644,
+  "minutes": 41.9,
+  "valProgress": 2701,
+  "valPops": [
+   516,
+   271,
+   86,
+   86
+  ],
+  "valGreedyProgress": 2157
+ },
+ {
+  "iter": 81,
+  "episodes": 4536,
+  "steps": 4082400,
+  "trainProgress": 2775,
+  "minutes": 42.5
+ },
+ {
+  "iter": 82,
+  "episodes": 4592,
+  "steps": 4132800,
+  "trainProgress": 2785,
+  "minutes": 43
+ },
+ {
+  "iter": 83,
+  "episodes": 4648,
+  "steps": 4183200,
+  "trainProgress": 2649,
+  "minutes": 43.5
+ },
+ {
+  "iter": 84,
+  "episodes": 4704,
+  "steps": 4233600,
+  "trainProgress": 2588,
+  "minutes": 44
+ },
+ {
+  "iter": 85,
+  "episodes": 4760,
+  "steps": 4284000,
+  "trainProgress": 2594,
+  "minutes": 44.5
+ },
+ {
+  "iter": 86,
+  "episodes": 4816,
+  "steps": 4334400,
+  "trainProgress": 2568,
+  "minutes": 45
+ },
+ {
+  "iter": 87,
+  "episodes": 4872,
+  "steps": 4384800,
+  "trainProgress": 2543,
+  "minutes": 45.4
+ },
+ {
+  "iter": 88,
+  "episodes": 4928,
+  "steps": 4435200,
+  "trainProgress": 2562,
+  "minutes": 45.9
+ },
+ {
+  "iter": 89,
+  "episodes": 4984,
+  "steps": 4485600,
+  "trainProgress": 2573,
+  "minutes": 46.4
+ },
+ {
+  "iter": 90,
+  "episodes": 5040,
+  "steps": 4536000,
+  "trainProgress": 2571,
+  "minutes": 46.8,
+  "valProgress": 2929,
+  "valPops": [
+   570,
+   241,
+   104,
+   101
+  ],
+  "valGreedyProgress": 2467
+ },
+ {
+  "iter": 91,
+  "episodes": 5096,
+  "steps": 4586400,
+  "trainProgress": 2559,
+  "minutes": 47.5
+ },
+ {
+  "iter": 92,
+  "episodes": 5152,
+  "steps": 4636800,
+  "trainProgress": 2715,
+  "minutes": 47.9
+ },
+ {
+  "iter": 93,
+  "episodes": 5208,
+  "steps": 4687200,
+  "trainProgress": 2739,
+  "minutes": 48.4
+ },
+ {
+  "iter": 94,
+  "episodes": 5264,
+  "steps": 4737600,
+  "trainProgress": 2891,
+  "minutes": 49
+ },
+ {
+  "iter": 95,
+  "episodes": 5320,
+  "steps": 4788000,
+  "trainProgress": 2601,
+  "minutes": 49.4
+ },
+ {
+  "iter": 96,
+  "episodes": 5376,
+  "steps": 4838400,
+  "trainProgress": 2658,
+  "minutes": 49.9
+ },
+ {
+  "iter": 97,
+  "episodes": 5432,
+  "steps": 4888800,
+  "trainProgress": 2806,
+  "minutes": 50.5
+ },
+ {
+  "iter": 98,
+  "episodes": 5488,
+  "steps": 4939200,
+  "trainProgress": 2602,
+  "minutes": 51
+ },
+ {
+  "iter": 99,
+  "episodes": 5544,
+  "steps": 4989600,
+  "trainProgress": 2793,
+  "minutes": 51.5
+ },
+ {
+  "iter": 100,
+  "episodes": 5600,
+  "steps": 5040000,
+  "trainProgress": 2743,
+  "minutes": 52,
+  "valProgress": 2782,
+  "valPops": [
+   568,
+   251,
+   115,
+   77
+  ],
+  "valGreedyProgress": 2163
+ },
+ {
+  "iter": 101,
+  "episodes": 5656,
+  "steps": 5090400,
+  "trainProgress": 2783,
+  "minutes": 52.8
+ },
+ {
+  "iter": 102,
+  "episodes": 5712,
+  "steps": 5140800,
+  "trainProgress": 2780,
+  "minutes": 53.3
+ },
+ {
+  "iter": 103,
+  "episodes": 5768,
+  "steps": 5191200,
+  "trainProgress": 2783,
+  "minutes": 53.8
+ },
+ {
+  "iter": 104,
+  "episodes": 5824,
+  "steps": 5241600,
+  "trainProgress": 2813,
+  "minutes": 54.2
+ },
+ {
+  "iter": 105,
+  "episodes": 5880,
+  "steps": 5292000,
+  "trainProgress": 2853,
+  "minutes": 54.7
+ },
+ {
+  "iter": 106,
+  "episodes": 5936,
+  "steps": 5342400,
+  "trainProgress": 2868,
+  "minutes": 55.2
+ },
+ {
+  "iter": 107,
+  "episodes": 5992,
+  "steps": 5392800,
+  "trainProgress": 2736,
+  "minutes": 55.7
+ },
+ {
+  "iter": 108,
+  "episodes": 6048,
+  "steps": 5443200,
+  "trainProgress": 2654,
+  "minutes": 56.1
+ },
+ {
+  "iter": 109,
+  "episodes": 6104,
+  "steps": 5493600,
+  "trainProgress": 2730,
+  "minutes": 56.6
+ },
+ {
+  "iter": 110,
+  "episodes": 6160,
+  "steps": 5544000,
+  "trainProgress": 2728,
+  "minutes": 57,
+  "valProgress": 3019,
+  "valPops": [
+   568,
+   277,
+   107,
+   98
+  ],
+  "valGreedyProgress": 2365
+ },
+ {
+  "iter": 111,
+  "episodes": 6216,
+  "steps": 5594400,
+  "trainProgress": 2800,
+  "minutes": 57.9
+ },
+ {
+  "iter": 112,
+  "episodes": 6272,
+  "steps": 5644800,
+  "trainProgress": 2691,
+  "minutes": 58.4
+ },
+ {
+  "iter": 113,
+  "episodes": 6328,
+  "steps": 5695200,
+  "trainProgress": 2816,
+  "minutes": 58.8
+ },
+ {
+  "iter": 114,
+  "episodes": 6384,
+  "steps": 5745600,
+  "trainProgress": 2816,
+  "minutes": 59.3
+ },
+ {
+  "iter": 115,
+  "episodes": 6440,
+  "steps": 5796000,
+  "trainProgress": 2824,
+  "minutes": 59.7
+ },
+ {
+  "iter": 116,
+  "episodes": 6496,
+  "steps": 5846400,
+  "trainProgress": 2822,
+  "minutes": 60.2
+ },
+ {
+  "iter": 117,
+  "episodes": 6552,
+  "steps": 5896800,
+  "trainProgress": 2725,
+  "minutes": 60.7
+ },
+ {
+  "iter": 118,
+  "episodes": 6608,
+  "steps": 5947200,
+  "trainProgress": 2691,
+  "minutes": 61.2
+ },
+ {
+  "iter": 119,
+  "episodes": 6664,
+  "steps": 5997600,
+  "trainProgress": 2714,
+  "minutes": 61.7
+ },
+ {
+  "iter": 120,
+  "episodes": 6720,
+  "steps": 6048000,
+  "trainProgress": 2679,
+  "minutes": 62.1,
+  "valProgress": 2978,
+  "valPops": [
+   599,
+   259,
+   96,
+   103
+  ],
+  "valGreedyProgress": 2294
+ },
+ {
+  "iter": 121,
+  "episodes": 6776,
+  "steps": 6098400,
+  "trainProgress": 2682,
+  "minutes": 62.8
+ },
+ {
+  "iter": 122,
+  "episodes": 6832,
+  "steps": 6148800,
+  "trainProgress": 2590,
+  "minutes": 63.3
+ },
+ {
+  "iter": 123,
+  "episodes": 6888,
+  "steps": 6199200,
+  "trainProgress": 2706,
+  "minutes": 63.7
+ },
+ {
+  "iter": 124,
+  "episodes": 6944,
+  "steps": 6249600,
+  "trainProgress": 2620,
+  "minutes": 64.2
+ },
+ {
+  "iter": 125,
+  "episodes": 7000,
+  "steps": 6300000,
+  "trainProgress": 2920,
+  "minutes": 64.7
+ },
+ {
+  "iter": 126,
+  "episodes": 7056,
+  "steps": 6350400,
+  "trainProgress": 2778,
+  "minutes": 65.2
+ },
+ {
+  "iter": 127,
+  "episodes": 7112,
+  "steps": 6400800,
+  "trainProgress": 2721,
+  "minutes": 65.7
+ },
+ {
+  "iter": 128,
+  "episodes": 7168,
+  "steps": 6451200,
+  "trainProgress": 2800,
+  "minutes": 66.2
+ },
+ {
+  "iter": 129,
+  "episodes": 7224,
+  "steps": 6501600,
+  "trainProgress": 2587,
+  "minutes": 66.6
+ },
+ {
+  "iter": 130,
+  "episodes": 7280,
+  "steps": 6552000,
+  "trainProgress": 2757,
+  "minutes": 67,
+  "valProgress": 2821,
+  "valPops": [
+   555,
+   234,
+   96,
+   99
+  ],
+  "valGreedyProgress": 2081
+ },
+ {
+  "iter": 131,
+  "episodes": 7336,
+  "steps": 6602400,
+  "trainProgress": 2673,
+  "minutes": 67.7
+ },
+ {
+  "iter": 132,
+  "episodes": 7392,
+  "steps": 6652800,
+  "trainProgress": 2765,
+  "minutes": 68.1
+ },
+ {
+  "iter": 133,
+  "episodes": 7448,
+  "steps": 6703200,
+  "trainProgress": 2920,
+  "minutes": 68.6
+ },
+ {
+  "iter": 134,
+  "episodes": 7504,
+  "steps": 6753600,
+  "trainProgress": 2800,
+  "minutes": 69.1
+ },
+ {
+  "iter": 135,
+  "episodes": 7560,
+  "steps": 6804000,
+  "trainProgress": 2648,
+  "minutes": 69.6
+ },
+ {
+  "iter": 136,
+  "episodes": 7616,
+  "steps": 6854400,
+  "trainProgress": 2781,
+  "minutes": 70
+ },
+ {
+  "iter": 137,
+  "episodes": 7672,
+  "steps": 6904800,
+  "trainProgress": 2625,
+  "minutes": 70.5
+ },
+ {
+  "iter": 138,
+  "episodes": 7728,
+  "steps": 6955200,
+  "trainProgress": 2849,
+  "minutes": 70.9
+ },
+ {
+  "iter": 139,
+  "episodes": 7784,
+  "steps": 7005600,
+  "trainProgress": 2747,
+  "minutes": 71.4
+ },
+ {
+  "iter": 140,
+  "episodes": 7840,
+  "steps": 7056000,
+  "trainProgress": 2783,
+  "minutes": 71.9,
+  "valProgress": 2922,
+  "valPops": [
+   636,
+   245,
+   99,
+   95
+  ],
+  "valGreedyProgress": 2349
+ },
+ {
+  "iter": 141,
+  "episodes": 7896,
+  "steps": 7106400,
+  "trainProgress": 2777,
+  "minutes": 72.6
+ },
+ {
+  "iter": 142,
+  "episodes": 7952,
+  "steps": 7156800,
+  "trainProgress": 2780,
+  "minutes": 73
+ },
+ {
+  "iter": 143,
+  "episodes": 8008,
+  "steps": 7207200,
+  "trainProgress": 2833,
+  "minutes": 73.5
+ },
+ {
+  "iter": 144,
+  "episodes": 8064,
+  "steps": 7257600,
+  "trainProgress": 2935,
+  "minutes": 73.9
+ },
+ {
+  "iter": 145,
+  "episodes": 8120,
+  "steps": 7308000,
+  "trainProgress": 2742,
+  "minutes": 74.4
+ },
+ {
+  "iter": 146,
+  "episodes": 8176,
+  "steps": 7358400,
+  "trainProgress": 2714,
+  "minutes": 74.8
+ },
+ {
+  "iter": 147,
+  "episodes": 8232,
+  "steps": 7408800,
+  "trainProgress": 2748,
+  "minutes": 75.3
+ },
+ {
+  "iter": 148,
+  "episodes": 8288,
+  "steps": 7459200,
+  "trainProgress": 2618,
+  "minutes": 75.7
+ },
+ {
+  "iter": 149,
+  "episodes": 8344,
+  "steps": 7509600,
+  "trainProgress": 2657,
+  "minutes": 76.2
+ },
+ {
+  "iter": 150,
+  "episodes": 8400,
+  "steps": 7560000,
+  "trainProgress": 2678,
+  "minutes": 76.6,
+  "valProgress": 3088,
+  "valPops": [
+   668,
+   217,
+   88,
+   124
+  ],
+  "valGreedyProgress": 2263
+ },
+ {
+  "iter": 151,
+  "episodes": 8456,
+  "steps": 7610400,
+  "trainProgress": 2756,
+  "minutes": 77.3
+ },
+ {
+  "iter": 152,
+  "episodes": 8512,
+  "steps": 7660800,
+  "trainProgress": 2726,
+  "minutes": 77.7
+ },
+ {
+  "iter": 153,
+  "episodes": 8568,
+  "steps": 7711200,
+  "trainProgress": 2735,
+  "minutes": 78.1
+ },
+ {
+  "iter": 154,
+  "episodes": 8624,
+  "steps": 7761600,
+  "trainProgress": 2999,
+  "minutes": 78.6
+ },
+ {
+  "iter": 155,
+  "episodes": 8680,
+  "steps": 7812000,
+  "trainProgress": 2668,
+  "minutes": 79.1
+ },
+ {
+  "iter": 156,
+  "episodes": 8736,
+  "steps": 7862400,
+  "trainProgress": 2696,
+  "minutes": 79.6
+ },
+ {
+  "iter": 157,
+  "episodes": 8792,
+  "steps": 7912800,
+  "trainProgress": 2758,
+  "minutes": 80.2
+ },
+ {
+  "iter": 158,
+  "episodes": 8848,
+  "steps": 7963200,
+  "trainProgress": 2662,
+  "minutes": 80.8
+ },
+ {
+  "iter": 159,
+  "episodes": 8904,
+  "steps": 8013600,
+  "trainProgress": 2742,
+  "minutes": 81.4
+ },
+ {
+  "iter": 160,
+  "episodes": 8960,
+  "steps": 8064000,
+  "trainProgress": 2785,
+  "minutes": 81.9,
+  "valProgress": 2713,
+  "valPops": [
+   587,
+   250,
+   71,
+   95
+  ],
+  "valGreedyProgress": 2780
+ },
+ {
+  "iter": 161,
+  "episodes": 9016,
+  "steps": 8114400,
+  "trainProgress": 2894,
+  "minutes": 82.9
+ },
+ {
+  "iter": 162,
+  "episodes": 9072,
+  "steps": 8164800,
+  "trainProgress": 2698,
+  "minutes": 83.4
+ },
+ {
+  "iter": 163,
+  "episodes": 9128,
+  "steps": 8215200,
+  "trainProgress": 2610,
+  "minutes": 83.9
+ },
+ {
+  "iter": 164,
+  "episodes": 9184,
+  "steps": 8265600,
+  "trainProgress": 2556,
+  "minutes": 84.4
+ },
+ {
+  "iter": 165,
+  "episodes": 9240,
+  "steps": 8316000,
+  "trainProgress": 2816,
+  "minutes": 84.9
+ },
+ {
+  "iter": 166,
+  "episodes": 9296,
+  "steps": 8366400,
+  "trainProgress": 2717,
+  "minutes": 85.5
+ },
+ {
+  "iter": 167,
+  "episodes": 9352,
+  "steps": 8416800,
+  "trainProgress": 2727,
+  "minutes": 86
+ },
+ {
+  "iter": 168,
+  "episodes": 9408,
+  "steps": 8467200,
+  "trainProgress": 2794,
+  "minutes": 86.5
+ },
+ {
+  "iter": 169,
+  "episodes": 9464,
+  "steps": 8517600,
+  "trainProgress": 2789,
+  "minutes": 87
+ },
+ {
+  "iter": 170,
+  "episodes": 9520,
+  "steps": 8568000,
+  "trainProgress": 2761,
+  "minutes": 87.5,
+  "valProgress": 2850,
+  "valPops": [
+   649,
+   204,
+   112,
+   92
+  ],
+  "valGreedyProgress": 2424
+ },
+ {
+  "iter": 171,
+  "episodes": 9576,
+  "steps": 8618400,
+  "trainProgress": 2796,
+  "minutes": 88.2
+ },
+ {
+  "iter": 172,
+  "episodes": 9632,
+  "steps": 8668800,
+  "trainProgress": 2676,
+  "minutes": 88.8
+ },
+ {
+  "iter": 173,
+  "episodes": 9688,
+  "steps": 8719200,
+  "trainProgress": 2727,
+  "minutes": 89.4
+ },
+ {
+  "iter": 174,
+  "episodes": 9744,
+  "steps": 8769600,
+  "trainProgress": 2736,
+  "minutes": 89.9
+ },
+ {
+  "iter": 175,
+  "episodes": 9800,
+  "steps": 8820000,
+  "trainProgress": 2560,
+  "minutes": 90.4
+ },
+ {
+  "iter": 176,
+  "episodes": 9856,
+  "steps": 8870400,
+  "trainProgress": 2686,
+  "minutes": 90.9
+ },
+ {
+  "iter": 177,
+  "episodes": 9912,
+  "steps": 8920800,
+  "trainProgress": 2691,
+  "minutes": 91.4
+ },
+ {
+  "iter": 178,
+  "episodes": 9968,
+  "steps": 8971200,
+  "trainProgress": 2652,
+  "minutes": 91.9
+ },
+ {
+  "iter": 179,
+  "episodes": 10024,
+  "steps": 9021600,
+  "trainProgress": 2593,
+  "minutes": 92.4
+ },
+ {
+  "iter": 180,
+  "episodes": 10080,
+  "steps": 9072000,
+  "trainProgress": 2552,
+  "minutes": 92.9,
+  "valProgress": 2961,
+  "valPops": [
+   604,
+   269,
+   88,
+   102
+  ],
+  "valGreedyProgress": 2517
+ },
+ {
+  "iter": 181,
+  "episodes": 10136,
+  "steps": 9122400,
+  "trainProgress": 2580,
+  "minutes": 93.6
+ },
+ {
+  "iter": 182,
+  "episodes": 10192,
+  "steps": 9172800,
+  "trainProgress": 2653,
+  "minutes": 94.1
+ },
+ {
+  "iter": 183,
+  "episodes": 10248,
+  "steps": 9223200,
+  "trainProgress": 2849,
+  "minutes": 94.7
+ },
+ {
+  "iter": 184,
+  "episodes": 10304,
+  "steps": 9273600,
+  "trainProgress": 2653,
+  "minutes": 95.2
+ },
+ {
+  "iter": 185,
+  "episodes": 10360,
+  "steps": 9324000,
+  "trainProgress": 2656,
+  "minutes": 95.7
+ },
+ {
+  "iter": 186,
+  "episodes": 10416,
+  "steps": 9374400,
+  "trainProgress": 2639,
+  "minutes": 96.2
+ },
+ {
+  "iter": 187,
+  "episodes": 10472,
+  "steps": 9424800,
+  "trainProgress": 2627,
+  "minutes": 96.6
+ },
+ {
+  "iter": 188,
+  "episodes": 10528,
+  "steps": 9475200,
+  "trainProgress": 2705,
+  "minutes": 97.2
+ },
+ {
+  "iter": 189,
+  "episodes": 10584,
+  "steps": 9525600,
+  "trainProgress": 2733,
+  "minutes": 97.6
+ },
+ {
+  "iter": 190,
+  "episodes": 10640,
+  "steps": 9576000,
+  "trainProgress": 2701,
+  "minutes": 98.1,
+  "valProgress": 2871,
+  "valPops": [
+   704,
+   205,
+   90,
+   101
+  ],
+  "valGreedyProgress": 2542
+ },
+ {
+  "iter": 191,
+  "episodes": 10696,
+  "steps": 9626400,
+  "trainProgress": 2683,
+  "minutes": 98.8
+ },
+ {
+  "iter": 192,
+  "episodes": 10752,
+  "steps": 9676800,
+  "trainProgress": 2661,
+  "minutes": 99.3
+ },
+ {
+  "iter": 193,
+  "episodes": 10808,
+  "steps": 9727200,
+  "trainProgress": 2678,
+  "minutes": 99.7
+ },
+ {
+  "iter": 194,
+  "episodes": 10864,
+  "steps": 9777600,
+  "trainProgress": 2670,
+  "minutes": 100.2
+ },
+ {
+  "iter": 195,
+  "episodes": 10920,
+  "steps": 9828000,
+  "trainProgress": 2726,
+  "minutes": 100.6
+ },
+ {
+  "iter": 196,
+  "episodes": 10976,
+  "steps": 9878400,
+  "trainProgress": 2584,
+  "minutes": 101.1
+ },
+ {
+  "iter": 197,
+  "episodes": 11032,
+  "steps": 9928800,
+  "trainProgress": 2714,
+  "minutes": 101.5
+ },
+ {
+  "iter": 198,
+  "episodes": 11088,
+  "steps": 9979200,
+  "trainProgress": 2681,
+  "minutes": 102
+ },
+ {
+  "iter": 199,
+  "episodes": 11144,
+  "steps": 10029600,
+  "trainProgress": 2712,
+  "minutes": 102.4
+ },
+ {
+  "iter": 200,
+  "episodes": 11200,
+  "steps": 10080000,
+  "trainProgress": 2740,
+  "minutes": 102.9,
+  "valProgress": 2646,
+  "valPops": [
+   718,
+   193,
+   81,
+   86
+  ],
+  "valGreedyProgress": 2377
+ }
+]

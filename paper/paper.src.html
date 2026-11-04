@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Writing the Weights</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans+Condensed:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one measured text column, A4 print first; tables and figures may run full width. */
+:root {
+  --paper: #fbfaf7; --ink: #1d1f22; --muted: #5d6168; --rule: #d6d3cc;
+  --accent: #1f5f73;            /* deep harbour teal: links, figure lines */
+  --accent2: #b4542c;           /* rust: second series */
+  --pending-bg: #fdf0d2; --pending-ink: #7a4b00;
+  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --sans: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #16181b; --ink: #e6e4df; --muted: #a2a6ad; --rule: #3a3d42; --accent: #6fb6c9; --accent2: #e08a63;
+  --pending-bg: #3d3018; --pending-ink: #f0cd8a; color-scheme: dark } }
+:root[data-theme="dark"] { --paper: #16181b; --ink: #e6e4df; --muted: #a2a6ad; --rule: #3a3d42; --accent: #6fb6c9; --accent2: #e08a63;
+  --pending-bg: #3d3018; --pending-ink: #f0cd8a; color-scheme: dark }
+@media print { :root { --paper: #fff; --ink: #111; --muted: #555; --rule: #ccc; --accent: #1f5f73; --accent2: #b4542c; --pending-bg: #fdf0d2; --pending-ink: #7a4b00 } }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 15.5px/1.55 var(--serif); }
+main { max-width: 46rem; margin: 0 auto; padding-block: 3rem 4rem; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1 { font: 600 2.05rem/1.15 var(--serif); margin: 0 0 .6rem; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font: 600 1.22rem/1.3 var(--serif); margin: 2.2rem 0 .6rem; text-wrap: balance; }
+h3 { font: 600 1rem/1.3 var(--serif); font-style: italic; margin: 1.5rem 0 .4rem; }
+p { margin: 0 0 .75rem; hyphens: auto; }
+.byline { font: 400 .92rem/1.4 var(--sans); color: var(--muted); margin-bottom: 1.6rem; }
+.status { font: 600 .78rem/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--pending-ink); background: var(--pending-bg); display: inline-block; padding: .35rem .55rem; border-radius: 3px; margin-bottom: 1rem; }
+.abstract { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding-block: .9rem; margin-bottom: 1.4rem; }
+.abstract h2 { margin: 0 0 .4rem; font: 600 .78rem/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+code, .pre { font-family: var(--mono); font-size: .8em; }
+.pending { background: var(--pending-bg); color: var(--pending-ink); padding: 0 .25em; border-radius: 2px; font-family: var(--sans); font-size: .9em; }
+a { color: var(--accent); }
+figure { margin: 1.4rem 0; }
+figcaption { font: 400 .86rem/1.45 var(--sans); color: var(--muted); margin-top: .4rem; }
+figcaption b { color: var(--ink); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font: 400 .82rem/1.35 var(--sans); }
+th { text-align: left; font-weight: 600; border-bottom: 1.5px solid var(--ink); padding: .3rem .45rem; vertical-align: bottom; }
+td { border-bottom: 1px solid var(--rule); padding: .3rem .45rem; vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.best td { font-weight: 600; }
+table.neurons { font-size: .72rem; }
+table.neurons td.pre { font-size: .9em; line-height: 1.45; }
+table.neurons .w { color: var(--accent); white-space: nowrap; }
+table.neurons .a { font-weight: 600; }
+table.neurons .grp { font: 600 .68rem/1.2 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-top: .15rem; }
+table.neurons tr { break-inside: avoid; }
+tr.grd td { color: var(--muted); }
+table.ablation td.barcell { width: 28%; }
+table.ablation .bar { display: block; height: .55rem; margin-top: .25rem; background: var(--accent2); opacity: .75; border-radius: 1px; }
+ol.refs { font-size: .88rem; padding-left: 1.3rem; }
+.eq { font-family: var(--mono); font-size: .86rem; background: color-mix(in srgb, var(--accent) 7%, transparent); padding: .55rem .75rem; border-radius: 3px; margin: .6rem 0 .9rem; overflow-x: auto; white-space: pre; }
+svg { width: 100%; height: auto; display: block; }
+svg .grid { stroke: var(--rule); stroke-width: 1; }
+svg .tick, svg .axis, svg .lbl { fill: var(--muted); font: 400 11px var(--sans); }
+svg .box { fill: color-mix(in srgb, var(--accent) 8%, var(--paper)); stroke: var(--accent); stroke-width: 1.2; }
+svg .box2 { fill: color-mix(in srgb, var(--accent2) 10%, var(--paper)); stroke: var(--accent2); stroke-width: 1.2; }
+svg .t { fill: var(--ink); font: 600 12px var(--sans); }
+svg .s { fill: var(--muted); font: 400 10.5px var(--sans); }
+svg .arrow { stroke: var(--muted); stroke-width: 1.3; fill: none; marker-end: url(#ah); }
+svg polyline { fill: none; stroke-width: 1.6; }
+svg .r-scratch { stroke: var(--muted); } svg .r-dense { stroke: var(--accent2); } svg .r-sparse { stroke: var(--accent); }
+svg .grd { stroke-dasharray: 4 3; } svg .x20 { stroke: var(--rule); stroke-dasharray: 2 3; }
+.legend .k.r-scratch { border-color: var(--muted); } .legend .k.r-dense { border-color: var(--accent2); } .legend .k.r-sparse { border-color: var(--accent); }
+.legend .k.smpk { border-color: var(--ink); } .legend .k.grdk { border-color: var(--ink); border-top-style: dashed; }
+svg .l1 { stroke: var(--muted); stroke-dasharray: 3 3; } svg .l1g { stroke: var(--accent2); stroke-dasharray: 3 3; } svg .d1g { fill: var(--accent2); }
+svg .c-front, svg .c-ten, svg .c-fifty { fill: none; stroke-width: 1.8; }
+svg .c-front { stroke: var(--accent); } svg .c-ten { stroke: var(--accent); stroke-dasharray: 5 3; } svg .c-fifty { stroke: var(--accent); stroke-dasharray: 1.5 3; }
+svg .c-rl { stroke: var(--accent2); stroke-width: 1.8; } svg .c-rlall { stroke: var(--accent2); stroke-width: 1.8; stroke-dasharray: 5 3; }
+svg .l2 { stroke: var(--muted); } svg .l2s { stroke: var(--accent); } svg .d2s { fill: var(--accent); } svg .l2g { stroke: var(--accent2); } svg .d2g { fill: var(--accent2); }
+.legend { display: flex; flex-wrap: wrap; gap: .3rem 1rem; font: 400 .78rem var(--sans); color: var(--muted); margin-top: .3rem; }
+.legend .k { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: .35rem; }
+.legend .l1 { border-color: var(--muted); border-top-style: dashed; } .legend .l1g { border-color: var(--accent2); border-top-style: dashed; }
+.legend .l2 { border-color: var(--muted); } .legend .l2s { border-color: var(--accent); } .legend .l2g { border-color: var(--accent2); }
+.figmeta { font: 400 .78rem var(--sans); color: var(--muted); margin-top: .2rem; }
+svg.mlp path { fill: none; opacity: .55; }
+svg.mlp .ep { stroke: var(--accent); } svg.mlp .en { stroke: var(--accent2); }
+svg.mlp .ni, svg.mlp .no { fill: var(--paper); stroke: var(--ink); stroke-width: 1.1; }
+svg.mlp .nh { fill: var(--paper); stroke: var(--ink); stroke-width: .9; }
+svg.mlp .lin { fill: var(--muted); font: 400 8.6px var(--mono); }
+svg.mlp .lout { fill: var(--ink); font: 400 9px var(--sans); }
+svg.mlp .lh { fill: var(--ink); font: 400 9.4px var(--sans); }
+svg.mlp .lh .hid { fill: var(--muted); font-family: var(--mono); font-size: 8.4px; }
+svg.mlp .lg { fill: var(--muted); font: 600 8px var(--sans); letter-spacing: .06em; text-transform: uppercase; paint-order: stroke; stroke: var(--paper); stroke-width: 3.5px; stroke-linejoin: round; }
+svg.mlp .col { fill: var(--muted); font: 600 9.5px var(--sans); letter-spacing: .04em; text-transform: uppercase; }
+figure.full { break-before: page; }
+@media print { h2 { break-after: avoid; } figure, .eq { break-inside: avoid; } main { padding: 0; max-width: none; } }
+</style>
+</head>
+<body>
+<main>
+
+<div class="status">Draft · built {{BUILT}}</div>
+<h1>Writing the Weights: Hand-Programmed Policy Networks versus Imitation and Reinforcement Learning in an Island City-Builder</h1>
+<div class="byline">Dennis &amp; Claude (Anthropic), working notes from the <em>New Shores</em> repository</div>
+
+<section class="abstract">
+<h2>Abstract</h2>
+<p>We compare four ways to obtain the same small policy network, a multi-layer perceptron that reads 67 features of an economy and picks one of 26 actions in <em>New Shores</em>, a browser city-builder in the tradition of colony-building games: <b>imitation learning</b> of a rule-based policy (behavior cloning with DAgger), <b>reinforcement learning</b> from scratch (PPO), <b>weight-space programming</b> (WSP), where an AI coding agent writes every weight without an optimizer, and <b>WSP followed by PPO fine-tuning</b>. On 30 islands that no method saw during development, the imitation net never upgrades a single house. The hand-written net (28 hidden units; 165 of 2,658 weights non-zero) earns the game's final goal, the Imperial Charter, on 22 of 30 islands within 60 simulated minutes. PPO from scratch earns it on 27 when its actions are sampled, but on at most 14 when the net is played greedily, the way the game uses a net. Starting PPO from the hand-written weights gives the best policy on every measure: the Charter on 29 of 30 islands, 17&#8239;% more progress than the best PPO run from scratch with the same compute, and, when only the hand-written weights and 36 spare units may change, the best greedy policy (24 of 30) while every hand-written unit keeps its meaning, so the changes RL made can be read unit by unit. Writing the weights also exposed six defects in the deterministic planner below the network that had capped every policy. Compute for reinforcement learning was cheap here ({{COST_ALL_USD}} for all runs); the advantage of hand-written weights lies in samples, about {{COST_SAMPLE_RATIO}}× fewer simulated decisions, which matters when samples are expensive and grows as token prices fall.</p>
+</section>
+
+<h2>1&ensp;Introduction</h2>
+<p>A neural policy is usually something one trains. Weight-space programming inverts that: a programmer reads the network's weights as text, decides what each unit should compute, and writes the numbers directly <a href="https://rikiyat.github.io/blog/weight-space-programming/">[1]</a>. The appeal is a network whose every unit has a stated purpose and can be checked, debugged and changed by hand. The open question is whether such a network can compete with one that was learned, and at what cost.</p>
+<p>We study the question on a real, shipped artifact rather than a toy: the Advisor and Autopilot of <em>New Shores</em>, a city-builder written in plain JavaScript. The Advisor is an MLP that maps the island's state to the next action; a deterministic search then decides where to build and how to route roads. The game had shipped with a behavior-cloned net. Its users could watch the Autopilot grow hundreds of pioneers and never a single settler.</p>
+<p>Our contributions: (i) a like-for-like comparison of imitation learning, reinforcement learning and weight-space programming on one network interface, one simulator and one seeded benchmark with held-out islands; (ii) a complete, unit-by-unit account of the hand-written network (Table 4, Figure 3), whose fine-tuned version now ships with the game, and an ablation of every unit (Table 5); (iii) hand-written weights as the starting point for reinforcement learning, with a readable record of what RL changed (Table 9); and (iv) a case study of what writing weights by hand reveals about the system around the network, and of what each approach costs.</p>
+
+<h2>2&ensp;Environment</h2>
+<h3>2.1&ensp;The game</h3>
+<p>Each game starts on a procedurally generated archipelago of 96&#8239;×&#8239;96 tiles: a home island with a warehouse and 2&#8239;500 gold, plus two or three smaller islands. Each island has its own <em>fertilities</em>: sheep, grain and potatoes grow on some islands only, and spice never grows on the home island. Houses fill with residents while their needs are met and pay taxes. Population climbs four tiers. Pioneers need food and a marketplace. Settlers (unlocked at 24 pioneers) also need cloth and a chapel. Citizens (30 settlers) also need liquor and a tavern. Merchants (40 citizens) also need spice, which only a colony can grow. A full house upgrades automatically when the next tier is unlocked, its services cover it, the tier's signature good is in stock and the upgrade cost is affordable. The island <em>flourishes</em> at 60 citizens; housing 25 merchants earns the <em>Imperial Charter</em>, the end of the game. Events (pirates, fires, plague, storms, a trading ship with drifting prices) add noise.</p>
+
+<h3>2.2&ensp;The policy interface</h3>
+<p>Every 4 simulated seconds the policy sees a 67-dimensional feature vector: stocks and net rates of nine goods, gold (log scale), residents per tier, house fullness, the unlocked tier, counts of 18 building types, the share of houses lacking each service, a few binary flags inherited from the game's original rule-based policy (<code>foodLow</code>, <code>goldLow</code>, …), production-chain imbalances, and six features for colonies and spice. It outputs logits for 26 actions: wait, 20 building types, and five trades (sell surplus, buy tools, food, liquor or cloth). The game masks invalid actions (unaffordable, locked, or on a placement cooldown) and takes the arg-max. Placement and road routing are a deterministic search, outside the network. Feature and action lists are append-only, so older nets with fewer inputs or outputs keep working.</p>
+<figure>
+<svg viewBox="0 0 700 150" role="img" aria-label="Decision pipeline">
+  <defs><marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor" style="color:var(--muted)"/></marker></defs>
+  <rect class="box" x="4" y="38" width="112" height="70" rx="3"/><text class="t" x="60" y="66" text-anchor="middle">game state</text><text class="s" x="60" y="84" text-anchor="middle">67 features</text>
+  <rect class="box2" x="150" y="38" width="130" height="70" rx="3"/><text class="t" x="215" y="62" text-anchor="middle">policy MLP</text><text class="s" x="215" y="80" text-anchor="middle">BC · PPO · WSP</text><text class="s" x="215" y="95" text-anchor="middle">→ 26 logits</text>
+  <rect class="box" x="314" y="38" width="112" height="70" rx="3"/><text class="t" x="370" y="66" text-anchor="middle">validity mask</text><text class="s" x="370" y="84" text-anchor="middle">roughValid()</text>
+  <rect class="box" x="460" y="38" width="96" height="70" rx="3"/><text class="t" x="508" y="66" text-anchor="middle">arg-max</text><text class="s" x="508" y="84" text-anchor="middle">one action</text>
+  <rect class="box" x="590" y="38" width="106" height="70" rx="3"/><text class="t" x="643" y="62" text-anchor="middle">planner</text><text class="s" x="643" y="80" text-anchor="middle">where to build,</text><text class="s" x="643" y="95" text-anchor="middle">roads (search)</text>
+  <path class="arrow" d="M116 73 H146"/><path class="arrow" d="M280 73 H310"/><path class="arrow" d="M426 73 H456"/><path class="arrow" d="M556 73 H586"/>
+  <path class="arrow" d="M643 108 V132 H60 V112"/><text class="s" x="350" y="146" text-anchor="middle">4 simulated seconds later</text>
+</svg>
+<figcaption><b>Figure 1.</b> One decision. Only the second box differs between the methods compared here; mask, arg-max and planner are shared.</figcaption>
+</figure>
+
+<h3>2.3&ensp;Evaluation protocol</h3>
+<p>The simulator runs headless in Node with seeded randomness, so every policy plays exactly the same games. We report <em>progress</em> = pioneers + 3·settlers + 6·citizens + 10·merchants, the residents per tier, and whether the Imperial Charter was earned, after 30 and 60 simulated minutes (450 and 900 decisions). A pure head-count would reward never upgrading, because upgrades cost gold and goods; the weights reflect that the game is won by climbing tiers. There are two island sets. The 14 <b>development islands</b> (seeds 11 … 606) were watched closely while the hand-written nets were developed, so results there favour WSP. The 30 <b>test islands</b> (seeds 2001–2030) were never used by any method. PPO trains on seeds ≥ 10&#8239;000 and selects checkpoints on seeds 901–907.</p>
+
+<h3>2.4&ensp;New Shores as an AI test bench</h3>
+<p>New Shores is more than the environment of this study. It serves its author as a test bench for AI methods, because one small, self-contained game exercises many of them at once, each against a concrete, visible result:</p>
+<ul>
+<li><b>Image generation.</b> All building sprites, terrain textures and interface icons are generated locally with FLUX.1-schnell (4-bit, via mflux on Apple Silicon) and a post-processing pipeline that removes backgrounds, trims and downscales sprites and makes terrain textures tile seamlessly.</li>
+<li><b>Animation.</b> The townspeople come from an AI-generated character sheet (Nano Banana) sliced into 61 cells, which form walk and work cycles (chopping, hammering, bending, carrying). Motion that diffusion models cannot draw consistently, such as bobbing, leaning and swinging, is animated procedurally by the engine.</li>
+<li><b>Procedural audio.</b> A lookahead scheduler composes the soundtrack bar by bar and follows the game's mood (algorithmic, not learned).</li>
+<li><b>Decision-making.</b> The Advisor and Autopilot policy is the subject of this paper: imitation learning, reinforcement learning and weight-space programming on one interface.</li>
+<li><b>Code and text by language models.</b> In this study an AI coding agent fixed the game's defects, rewrote the building planner, added touch controls, wrote the hand-written networks, the training and benchmark scripts, and drafted this paper.</li>
+</ul>
+<p>The headless, seeded simulator that makes the comparisons in this paper reproducible is part of the same bench: every method plays the same games and is judged by the same rules.</p>
+
+<h2>3&ensp;Methods</h2>
+<h3>3.1&ensp;Imitation learning (BC)</h3>
+<p>The game's original advisor: an MLP (67 → 48 tanh → 26) trained by behavior cloning of a rule-based policy in the game's source (an if-cascade that grows houses before it ever considers a production chain, and so never builds a sheep farm): 28 games of 180 decisions with 18&#8239;% random exploration, followed by three DAgger rounds of 10 games each in which the net acts and the rule-based policy labels the states it visits. The cross-entropy loss is minimized by SGD with momentum; 'wait' labels are subsampled 1:4. Four candidates are trained and the best on three islands is kept. We retrained it on the final environment for this comparison.</p>
+
+<h3>3.2&ensp;Reinforcement learning (PPO)</h3>
+<p>Proximal policy optimization from random initialization, without any labels: policy MLP 67 → 64 tanh → 26 with a softmax over the valid actions only (the same mask as the game), a separate value MLP 67 → 64 → 1, reward = increase of progress per decision / 100, GAE with γ = 0.995 and λ = 0.95, clip ε = 0.2, entropy bonus 0.01, Adam at 3·10⁻⁴, four epochs over minibatches of 512 per iteration. Training games are played in parallel worker processes on islands with seeds ≥ 10&#8239;000. Every 10 iterations the policy is scored on seven validation islands (seeds 901–907), both sampled and greedy, and the checkpoint with the best sampled score is kept as the run's result; the final weights are kept as well. We ran five configurations on a 256-core CPU server (Table 7c): 30-minute games with 14 games per iteration (<em>base</em>, 500 iterations), the same with a ten times smaller entropy bonus (<em>lowent</em>), with 56 games per iteration (<em>big</em>, 300 iterations), and 60-minute games with 14 (<em>h60</em>, 300 iterations) or 56 games per iteration (<em>h60big</em>, 200 iterations, 9.2 million decisions). The configuration was not tuned beyond these five runs.</p>
+
+<h3>3.3&ensp;Weight-space programming (WSP)</h3>
+<p>The weights are written by a programmer. Here the programmer was an AI coding agent (Claude) working in the repository with the user; it could read code, run the headless simulator and trace single games, but never ran an optimizer on the weights. The process went through three stages.</p>
+<p><b>Stage 0, editing the trained net.</b> First, gated units were appended to the BC net: each extra hidden unit <code>h = tanh(g·(Σ wᵢxᵢ + b))</code> is ≈ +1 when a rule holds and ≈ −1 otherwise, and adds a priority p to one action through W₂ = p/2 and a bias shift of p/2, so the trained net is untouched while the rule is off. Edits were kept only if they raised progress on eight practice islands. Progress there rose from 363 to 736, but on six held-out islands only from 666 to 674. The edits fitted the practice islands; they did not generalize.</p>
+<p><b>Stage 1, reading the trained net.</b> Reading all 4&#8239;054 weights of the BC net at once was more useful. Its largest weights (|w| up to 28) sit on the binary flags of the rule-based policy it imitates: for instance a unit with <code>foodLow</code> +23.9 and <code>goldLow</code> −23.5 drives "buy food", and one with <code>woodLow</code> +8.6 drives "woodcutter". The net is that cascade written in weights. The input weights for cloth, potatoes and liquor are near zero in all 48 units, and the output columns for weaver, toolmaker, tavern and "buy tools" are near zero too: those branches of the imitated policy were almost never reached, so there was nothing to imitate. The <code>woodLow</code> flag is only 1 below four woodcutters, so the net could not even perceive a wood shortage in a large town.</p>
+<p><b>Stage 2, WSP v2: needs → priorities.</b> A new net written from scratch (the second hand-written design; a first one, with two hidden layers of switches and rules, was discarded). One hidden layer, the same shape as the original net. Each unit is a <em>need</em> read linearly from the features, graded rather than switched (food pressure rises smoothly with population and falls with stock), and conjunctions are folded into single units: each term is scaled to about ±2, and the bias subtracts 2 per extra term.</p>
+<div class="eq">h_j = tanh( Σ_i W1[i][j]·x_i + b1[j] )             one need per unit
+logit_a = −8 + Σ_j (p_ja / 2)·(h_j + 1)               p_ja: priority of need j for action a
+action = arg-max over valid a  (ties and silence → wait)</div>
+
+<h3>3.4&ensp;Hand-written start, RL fine-tuning (WSP+PPO)</h3>
+<p>The two approaches can be combined: the hand-written net supplies what it knows about the game, and PPO tunes priorities and thresholds. The PPO policy (67 → 64 → 26) is initialized with WSP v2 in its first 28 hidden units. The remaining 36 units start with zero output weights, so before training the policy plays exactly like WSP v2, which we verified move for move on two islands. Three details make the warm start work. First, the hand-written priorities reach about 100, which makes a softmax over them practically deterministic; dividing all logits by a temperature of 10 keeps the arg-max, and so the greedy behaviour, unchanged while giving close alternatives a real probability. Second, the value net starts from random weights and its early advantage estimates are noise, so the first 20 iterations train only the value net and keep the policy fixed. Third, the hand-written units are saturated switches through which little gradient flows, so PPO mainly changes the output priorities and the spare units. We run two variants with the budget of the best PPO configuration (60-minute games, 56 per iteration, 200 iterations): <b>wsprl</b>, where every weight may change, and <b>wsprlsparse</b>, where only the 165 non-zero weights of WSP v2 and the spare units may change, so that the zeros, and with them the neuron-by-neuron account of Table 4, survive.</p>
+
+<h2>4&ensp;What writing the weights revealed</h2>
+<p>Every regression of a hand-written net could be traced to a specific unit and a specific game, which made a second kind of bug visible: defects below the network, in the deterministic planner. None of them could have been learned around, because they removed the actions' effects altogether. Each was found by tracing why a unit that fired produced nothing.</p>
+<ol>
+<li><b>Walled-in base.</b> The planner preferred spots adjacent to the warehouse, which need no road. After a market, a chapel and six woodcutters, all eight tiles around the 2&#8239;×&#8239;2 warehouse were occupied and no road could ever connect to it again. Fix: keep the ring around every base free.</li>
+<li><b>Enclosed land.</b> Buildings placed wall to wall enclosed whole areas: on one island, 245 free tiles inside the building zone were unreachable by any road. Fix: a street grid, every fifth row and column from the warehouse kept free.</li>
+<li><b>Full zone.</b> Taverns (2&#8239;×&#8239;2) found no free spot in a full town. Fix: a depot at the zone's edge, which extends the zone.</li>
+<li><b>No room for a service.</b> When even that fails, the planner tears down up to four houses where a tavern or chapel covers the most unserved houses.</li>
+<li><b>Colonies used as overflow.</b> Fishers and houses filled the small colony island before any spice garden. Fix: on a colony, build only what the home island cannot grow.</li>
+<li><b>Lost pasture.</b> A spice garden lost two of its eight required grass tiles to later roads. Fix: farms are placed with a margin of four tiles.</li>
+</ol>
+<p>The planner also routed roads outside the building zone, where placing them silently failed, and then built the unconnected building anyway; this, with ten other defects found in a separate code review, was fixed before any experiment reported here. Three trade actions (buy liquor, buy cloth) and the colony actions (Kontor, spice garden) were added to the interface because no policy could reach Merchants without them.</p>
+
+<figure>
+<div class="scroll">
+<table class="data">
+<thead><tr><th>change</th><th class="num">BC net</th><th class="num">WSP v2</th></tr></thead>
+<tbody>
+<tr><td>original planner (30 min)</td><td class="num">493</td><td class="num">768</td></tr>
+<tr><td>+ free ring around bases</td><td class="num">438</td><td class="num">698</td></tr>
+<tr><td>+ street grid, zone expansion, liquor import</td><td class="num">624</td><td class="num">1&#8239;348</td></tr>
+</tbody>
+</table>
+</div>
+<figcaption><b>Table 1.</b> Development log on the 14 development islands, mean progress after 30 minutes. The BC column is the net the game originally shipped with. Each row is the environment of its time, so rows do not compare across. WSP v2 has settlers on every island from the first row and is the first policy with citizens (107 per island on average in the last row).</figcaption>
+</figure>
+
+<figure>
+<div class="scroll">
+<table class="data">
+<thead><tr><th>WSP v2 milestone (60 min)</th><th class="num">islands with citizens</th><th class="num">with merchants</th><th class="num">Charter</th></tr></thead>
+<tbody>
+<tr><td>colony and spice actions, colony needs ≥ 2000 gold</td><td class="num">14</td><td class="num">4</td><td class="num">4</td></tr>
+<tr><td>colony from 1600 gold, liquor import gated by gold, colonies reserved for colony crops</td><td class="num">12</td><td class="num">7</td><td class="num">7</td></tr>
+<tr><td>cloth import from 5000 gold, depot need restored</td><td class="num">12</td><td class="num">8</td><td class="num">8</td></tr>
+<tr><td>houses cleared for taverns</td><td class="num">14</td><td class="num">7</td><td class="num">7</td></tr>
+<tr class="best"><td>early liquor import only from 2000 gold, pasture margin (final WSP v2)</td><td class="num">14</td><td class="num">14</td><td class="num">14</td></tr>
+<tr><td><i>rejected:</i> houses shrink when a luxury is missing (stricter rules)</td><td class="num">14</td><td class="num">5</td><td class="num">5</td></tr>
+</tbody>
+</table>
+</div>
+<figcaption><b>Table 2.</b> Reaching the end of the game. Each row is one full benchmark run after a weight or planner change; mean of the final WSP v2: 34 pioneers, 212 settlers, 118 citizens, 107 merchants per island. The last row is a candidate rule change for the game (proposed in a code review) that was rejected because it made the game far harder to finish.</figcaption>
+</figure>
+
+<h2>5&ensp;The hand-written network, neuron by neuron</h2>
+<p>Table 3 lists the networks. Table 4 is generated from the hand-written weights themselves: for each of the 28 hidden units, every non-zero input weight, the bias, every action it moves and by how much (the priority p, i.e. twice the output weight), and what it is for. All other weights are exactly zero.</p>
+<figure><div class="scroll">{{NET_STATS}}</div>
+<figcaption><b>Table 3.</b> The networks compared. "Non-zero" counts weights and biases different from 0.</figcaption></figure>
+
+<figure class="full">{{MLP_FIGURE}}
+<figcaption><b>Figure 3.</b> The hand-written network (WSP v2), drawn from its weights. Every line is one non-zero weight ({{MLP_EDGES}} in all): blue positive, rust negative, thickness grows with the logarithm of |w|. Left: the {{MLP_INS}} features the network reads; the other inputs have no weight at all. Middle: the 28 hidden units, named after what they compute and grouped by role. Right: the {{MLP_OUTS}} actions they drive, each with what it does: a building with its output per minute (inputs it consumes before the arrow) or service radius, or a trade with its amount. For a building, the planner picks the spot near a town centre and paves the road to it. Output lines carry the priority p of Table 4. Biases are not drawn; 'wait' has none and wins when nothing fires.</figcaption></figure>
+<p>The units fall into eight groups. <b>Bootstrap</b> units (h0, h5) fire only on an empty island. <b>Economy</b> units (h1–h4, h13) are graded pressures on food, wood, tools and gold, plus a crisis unit that vetoes houses when the pantry is empty and falling; it is the only hard veto, because softer vetoes deadlocked islands with no fishing spot. <b>Chains</b> units keep producer/consumer pairs balanced (farms ≤ weavers, grain ≤ bakeries, …) and open a chain when its good is needed. <b>Services</b> units react to the share of houses without coverage, gated by "there are houses at all", because the service features read 1 on an empty island. <b>Safety</b> units add fire stations and watchtowers. <b>Expansion</b> units drive depots, which extend the building zone. <b>Colonies</b> and <b>Trade</b> units carry the late game: found a colony when citizens and gold allow, plant spice, and spend only surplus gold on imports. Priorities order them: market 100, tools 90, bakery 86, fisher 85, grain 83, woodcutter 78, …, house 30.</p>
+<figure><div class="scroll">{{NEURON_TABLE}}</div>
+<figcaption><b>Table 4.</b> All 28 hidden units of the hand-written network (dev/handwritten-net-v2.js; regenerate with <code>node dev/explain-net.js</code>). Feature scales: stocks are shares of storage (300 plus depots), rates are units per minute / 20, populations are residents / 100, building counts / 10, gold is log₁₀(1 + gold) / 4.</figcaption></figure>
+<h3>5.1&ensp;Ablation: what each unit is worth</h3>
+<p>To check that every unit does what its name says, we switched off one unit at a time (no inputs, bias −100, so it never fires) and replayed the 14 development islands for 60 minutes (Table 5). Four units are indispensable: without <em>houses filling up</em> (h11) no house is ever built, without <em>wood pressure</em> (h2) the economy never starts, without <em>food pressure</em> (h1) towns starve, and without <em>tavern coverage gap</em> (h17) no island reaches Citizens. The late game rests on a chain of units, each of which removes the Charter on every island when missing: <em>found a colony</em> (h23), <em>spice needed</em> (h27) and the tavern unit. Several units cost little or no progress but still lose Charters when missing (fire brigade, storage, gold), which is the insurance they were written for. One unit is dead weight: <em>import cloth</em> (h26) changes progress by +1 and costs one Charter, within noise. It survived development because it was added together with another change that did help (Table 2, row 3), and is a candidate for removal.</p>
+<figure><div class="scroll">{{ABLATION}}</div>
+<figcaption><b>Table 5.</b> Ablation of each hidden unit of WSP v2, 14 development islands, 60 minutes, sorted by loss of progress. Bars scale with the loss; "citizens on" counts islands that reach the Citizen tier.</figcaption></figure>
+
+<h2>6&ensp;Results</h2>
+<p>Table 7 is the main result. Four findings stand out. <b>Imitation fails:</b> the BC net never upgrades a house, on any island. <b>The hand-written net works but overfits:</b> WSP v2 earns the Charter on 22 of 30 unseen islands, against 14 of 14 on the development islands it was written for (Table 7b). <b>PPO from scratch learns more than the programmer wrote down, but only as a stochastic policy:</b> the best run, sampled, earns the Charter on 27 of 30 islands and reaches it fastest among the single methods, while the same net played greedily earns it on 13 or 14. <b>The combination is best:</b> PPO started from the hand-written weights earns the Charter on 29 of 30 islands, in a median of 29 minutes, with the highest progress of all policies; its sparse variant is also the best greedy policy (24 of 30), the form in which the game can use it. A policy that picks uniformly among the valid actions earns the Charter on 14 of 30 islands. The planner, after the fixes of section 4, carries much of the game; the imitation net, whose learned order (houses before any production chain) is worse than no order at all, earns it on none.</p>
+<figure><div class="scroll">{{RESULTS_TEST}}</div>
+<figcaption><b>Table 7.</b> Main result: 30 test islands never used by any method, 60-minute games with a snapshot at 30 minutes. P / S / C / M: pioneers, settlers, citizens, merchants per island. <em>Sampled</em> plays a PPO net as it was trained, drawing actions from its softmax; <em>greedy</em> plays it as the game plays every net, taking the arg-max (greyed). <em>Best checkpoint</em>: the one with the best sampled score on the validation islands, chosen before testing; <em>final</em>: the weights after the last iteration, shown because the greedy policies kept improving after the best sampled checkpoint. Best values in bold.</figcaption></figure>
+<figure><div class="scroll">{{RESULTS_DEV}}</div>
+<figcaption><b>Table 7b.</b> The same on the 14 development islands, on which the hand-written net was developed and which therefore favour it.</figcaption></figure>
+<figure><div class="scroll">{{RESULTS_SEARCH}}</div>
+<figcaption><b>Table 7c.</b> All PPO-from-scratch configurations on the 30 test islands. Only the runs trained on 60-minute games learn to found colonies and reach Merchants; the 30-minute runs are strongest after 30 minutes and never get there.</figcaption></figure>
+
+<h3>6.1&ensp;Accuracy is the wrong yardstick</h3>
+<p>The original advisor was described by its accuracy: how often it chose the same action as the rule-based policy it imitates. Table 6 shows why that number misleads here. The retrained imitation net agrees with that policy two thirds of the time and keeps 92&#8239;% of its houses fully supplied, because it only ever builds pioneer houses, whose needs are food and a market. WSP v2 disagrees with it three times out of four, and still keeps 78&#8239;% of its houses fully supplied although most of them are settler, citizen or merchant houses that also need cloth, liquor, spice, a chapel and a tavern.</p>
+<figure><div class="scroll">{{AGREEMENT}}</div>
+<figcaption><b>Table 6.</b> Accuracy (share of decisions identical to the imitated rule-based policy's in the same state), and share of houses with every need met (sampled every minute), 14 development islands, 30 minutes. "Old advisor" is the net the game shipped with before this study (61 inputs, 22 actions).</figcaption></figure>
+
+<h3>6.2&ensp;Reinforcement learning: sampled and greedy</h3>
+<p>A PPO policy is a distribution over actions, and what it learns is good as a distribution. Played greedily, by always taking its most probable action, it is consistently worse (Table 7) and was, for part of training, almost useless: in every one of the five runs from scratch the greedy validation score first rose and then collapsed to between 0 and 24 for a stretch of iterations, before recovering as the policy sharpened (Figure 2). The two WSP-initialized runs never collapsed; their greedy score stayed above 1&#8239;670 throughout. The warm start keeps the policy's arg-max meaningful while RL explores around it. Two practical lessons follow. The episode must be long enough to contain the goal: only runs trained on 60-minute games ever found a colony. And checkpoints should be selected in the form in which the policy will be used: selected by their sampled score, the WSP-initialized runs' best checkpoints earn the Charter greedily on 11 and 12 of 30 islands, their final weights on 17 and 24.</p>
+<figure>{{RL_CURVE}}
+<figcaption><b>Figure 2.</b> Validation progress after 60 minutes, every 10 iterations, for the best PPO configuration from scratch and the two WSP-initialized runs with the same budget. Solid: sampled actions; dashed: greedy. The WSP-initialized runs train only their value net for the first 20 iterations. The hand-written net alone reaches about 2&#8239;450 on the development islands.</figcaption></figure>
+
+<h3>6.3&ensp;What reinforcement learning changed in the hand-written net</h3>
+<p>Because the sparse variant may only change the hand-written net's non-zero weights and its 36 new units, its result can be compared with the original unit by unit (Table 9). The input weights of every hand-written unit moved by at most a few percent, so each unit still detects what its name says. What PPO changed are the priorities, and its changes are legible. It almost switched off the import of liquor before a colony exists (priority 60 → 19), the interaction that had cost the hand-written development most: liquor bought early ate the gold the colony needs. It lowered the cloth import (72 → 62), which the ablation had found to be dead weight. It raised the toolmaker (47 → 60), the distillery (53 → 61) and the colony (66 → 69), and lowered the food producers, the woodcutter and the tavern by a few points. The spare units carry a substantial share of the decisions and are not explained; they are where RL added rules the programmer did not write. Without the sparsity mask, the same training rewired the hand-written units themselves: their input weights moved by up to 170&#8239;%, and every unit gained connections to many actions, so the account of Table 4 no longer applies to that net. Its results are mixed against the sparse variant: better when sampled at the best checkpoint (3&#8239;153 against 3&#8239;082), worse when played greedily at the end (2&#8239;656 against 2&#8239;942, 17 against 24 Charters). Keeping the program readable cost nothing measurable.</p>
+<figure><div class="scroll">{{RL_DIFF}}</div>
+<figcaption><b>Table 9.</b> Priorities of the hand-written units before and after PPO fine-tuning (sparse variant, final weights), sorted by the size of the change. Priorities after PPO are the output weights × 2 × the temperature of 10 used at initialization, so both columns are on the same scale.</figcaption></figure>
+
+<h3>6.4&ensp;Cost</h3>
+<p>A common argument for writing weights with a language model is cost: tokens are cheap, training is expensive. For this study the argument does not hold, and the reason is instructive. Table 8 lists what each method consumed. The simulator is fast (6.6&#8239;ms per decision on a laptop core; 99.3&#8239;% of that time is the game, 0.7&#8239;% the network) and the network is tiny, so PPO needs no GPU, and all {{COST_N_RUNS}} PPO runs of this study together cost {{COST_ALL_USD}} at cloud prices for CPU time [5]; the best single run cost {{COST_BEST_USD}}. The tokens spent on writing the weights are of the same order. We have no billing export for the study and estimate them from the number of requests and their context lengths at the list prices of the models used [6]: about $15–30 for the development of WSP v2, and about $30–60 for the whole study including the game fixes and this paper.</p>
+<p>Where hand-written weights do save is in <em>samples</em>. WSP v2 was developed with roughly 0.3 million simulated decisions, mostly benchmark runs; the best PPO run used {{COST_BEST_DECISIONS}}, some {{COST_SAMPLE_RATIO}} times more. Here a simulated decision costs a fraction of a millisecond of CPU time, so the difference is worth cents. It decides the comparison whenever a sample is expensive: a slow physical simulator, real hardware, or a person in the loop.</p>
+<p>The two costs also move differently over time (Figure 4). Prices for a fixed level of LLM capability have fallen by between 9× and 900× per year depending on the task, with a median of about 50× [7]; other estimates put it near 10× per year [8] or 5–10× for frontier models [9]. List prices of the most capable models fall more slowly: Anthropic's top tier went from $75 per million output tokens (Claude 3 Opus, March 2024) to $25 (Claude Opus 4.5, November 2025), roughly 2× per year [6]. CPU time has changed little, and we assume it flat. If the work done here by a frontier model can be done in a year by a cheaper model of today's capability, the estimated token cost of writing such a network drops below the CPU cost of the best PPO run within {{COST_CROSS_50}}–{{COST_CROSS_10}} months; if it must wait for frontier list prices to fall, it takes about {{COST_CROSS_FRONTIER}} years.</p>
+<figure><div class="scroll">{{COST_TABLE}}</div>
+<figcaption><b>Table 8.</b> Resources used per method. PPO rows are computed from the training logs: wall time × (workers + 1) cores, at $0.0513 per vCPU-hour (AWS c7a, on-demand) [5]. Token costs are estimates at list prices [6]; the person who steered the work is not priced. BC and WSP CPU times are approximate.</figcaption></figure>
+<figure>{{COST_FIGURE}}
+<figcaption><b>Figure 4.</b> Projected cost of producing one policy. Blue: the estimated token cost of WSP v2 (midpoint of the estimate) falling at the frontier list-price rate (≈ 2×/year [6]) and at the rates reported for a fixed capability (10× [8] and 50× per year [7]). Rust: CPU cost of the best PPO run and of the whole PPO configuration search, assumed constant. Log scale.</figcaption></figure>
+
+<h3>6.5&ensp;Choosing a strategy</h3>
+<p>Table 11 puts the test result of each strategy next to what it cost. Performance is shown twice: sampled, as a trained policy is evaluated, and greedy, as the game uses a net. For RL alone it lists both the single best run and the configuration search that found it, because a practitioner would not know in advance that 60-minute games and large batches are needed; the hybrids reused that configuration.</p>
+<figure><div class="scroll">{{STRATEGY_TABLE}}</div>
+<figcaption><b>Table 11.</b> Performance on the 30 test islands next to effort. Charter: islands that earn the Imperial Charter within 60 minutes; progress after 60 minutes. Sampled values use the best-checkpoint rule; greedy values use the final weights, the stronger greedy checkpoint (Table 7). CPU at $0.0513 per core-hour [5]; token costs are estimates [6]. The person who steered the work is not priced.</figcaption></figure>
+<p>The choice follows from three questions. <b>Can the policy act stochastically?</b> If actions may be sampled, every strategy except imitation reaches the Charter on most islands, and the hybrid with free weights is best (29 of 30). If the policy must be deterministic, as in the game, RL alone falls to about half its Charters and the sparse hybrid is clearly best (24 of 30), followed by the hand-written net alone (22 of 30). <b>Must the policy stay readable?</b> Then WSP alone or the sparse hybrid: both keep every hand-written unit's meaning, and the hybrid's changes can be reviewed (Table 9). <b>What does a sample cost?</b> Here a simulated decision costs microseconds of CPU, and the hybrid's extra effort over WSP alone, one RL run of about 10 million decisions, costs about five dollars and an hour and a half. Where samples are expensive (a slow physical simulator, real hardware, people in the loop), WSP alone needs about thirty times fewer of them, and RL alone is the most expensive option. A policy imitated from rules is the cheapest to make and the only one that never works here.</p>
+
+<h2>7&ensp;Discussion</h2>
+<p><b>Imitation is capped by what it imitates.</b> The BC net reproduces the rule-based policy faithfully, including its blind spots: branches that policy never reached leave zero weights. No amount of data from it could teach cloth.</p>
+<p><b>Writing the weights was the fastest way to a policy that plays the whole game,</b> and it produced a network that is fully explained: 6&#8239;% of its weights are non-zero, every unit has a stated job, and the ablation confirms each job. It also overfits the islands its author watched: 14 of 14 Charters there, 22 of 30 on unseen islands. Hand-tuned thresholds are fitted to what the programmer saw, as stage 0 had already shown.</p>
+<p><b>Its largest effect was outside the network.</b> Six planner defects capped every policy, and they were found because a hand-written unit makes a specific promise ("this unit fires when no tavern covers 15&#8239;% of houses") that can be checked against a trace. A learned policy facing the same defects would simply have learned to avoid the actions that silently failed. After the fixes, even a uniformly random policy earns the Charter on almost half the islands.</p>
+<p><b>Reinforcement learning finds what the programmer did not write down,</b> given millions of decisions, a reward that encodes the goal and episodes long enough to reach it. It finds it as a stochastic policy; deployed greedily, the same net loses half its Charters.</p>
+<p><b>The two combine well.</b> The hand-written net gives reinforcement learning a start that already plays the whole game, and reinforcement learning corrects the programmer's priorities with evidence from millions of games. With a sparsity mask the result stays a program a person can read: the corrections in Table 9 agree with what the ablation and the development history had suggested, and they are small enough to review.</p>
+<p><b>Writing weights is programming, with programming's failure modes.</b> Several edits backfired in ways that only a full benchmark showed: a veto that never lifted, a gold threshold that held the treasury exactly below the price of a colony, an import that ate the colony's budget. These are interactions between rules, the same class of bug as in any rule system, and the one PPO fixed most decisively.</p>
+
+<h2>8&ensp;Scaling weight-space programming with a team of agents</h2>
+<p>The network here is small enough for one programmer. A natural question is whether the method scales by dividing the weights among several agents, each of which iteratively edits its own subset. We think it does, under conditions that this study makes concrete. We have not tested a multi-agent setup; this section is a hypothesis with a proposed test.</p>
+<p><b>Why it can work.</b> A hand-written network is modular by construction. Every unit of WSP v2 has its own inputs, its own actions and a stated purpose, and the units fall into nine groups (Table 4) that read like the modules of a program: economy, production chains, services, colonies, trade. An agent responsible for one group needs to read only that group's weights, which eases the context limit that the original weight-space programming experiments name as a constraint <a href="https://rikiyat.github.io/blog/weight-space-programming/">[1]</a>. The ablation (Table 5) shows that most units can be tested in isolation: switching one off usually costs a small part of the progress and points to exactly the behaviour it owns.</p>
+<p><b>Why it is not free.</b> The modules are coupled through the output layer: priorities from all groups compete for the same decision. The most expensive bugs in this study were interactions between groups, each of which would have looked correct from inside its module. Importing liquor (trade) kept the treasury just below the price of a colony (colonies), so no colony was ever founded; a veto on houses (economy) waiting for a sheep farm (chains) stopped all growth when the farm found no site. A team therefore needs what software teams need. First, interfaces: fixed feature semantics and a priority band per group, so that one module cannot silently outbid another. Second, a shared integration test: the seeded benchmark, run after every change, with per-unit ablation as a regression check. Third, coordination: an agent or person who owns the cross-module priorities and reviews changes that touch them.</p>
+<p><b>Where it stops.</b> The argument holds for networks written to be modular. In large networks trained by gradient descent, units are typically polysemantic and features are stored in superposition, so a partition of the weights does not correspond to a partition of the functions, and edits by different agents would interfere. The weight-space edits reported for a 0.8-billion-parameter language model <a href="https://rikiyat.github.io/blog/weight-space-programming/">[1]</a> accordingly targeted a single direction in activation space found by analysis, not a block of weights. For such models a team would first need interpretability tools that recover modules; for networks written from scratch, the modules exist by design.</p>
+<p><b>A hand-written mixture of experts.</b> The natural architecture for such a team is a mixture of experts (MoE) written by hand. In a trained MoE the experts do not split by subject: studies of trained MoE language models find little domain specialization, the experts couple through the shared residual stream, and the learned router depends on representations every expert helps to form. When the network is written instead of trained, the split is a design decision. Each expert can be given one subject, and the router can be written as readable conditions ("this state belongs to the colony expert because citizens are unlocked and no Kontor exists"). Every expert boundary is then a functional boundary, so the team divides along it: one agent per expert, with the router and the priority bands owned by the coordinator. WSP v2 is a miniature of this design. Its unit groups are the experts, the conditions inside each unit are the routing, and the action priorities are the interface between them. Two couplings remain even then. First, inputs that concern several subjects activate several experts, whose contributions must agree, as the liquor import (trade) and the colony budget (colonies) did not; hard routing, where exactly one expert decides, or a fixed priority band per expert keeps this small and visible. Second, all experts read the same features, so the meaning of a feature is an interface the coordinator must keep fixed. Hand-written experts are realistic today for problems with engineered features, such as games, control and decision policies. Writing a language-model expert for a field such as medicine by hand is out of reach.</p>
+<p><b>Coupling runs through resources, not weights.</b> Measured in the weights of WSP v2, the modules are only loosely coupled: 3 of the 36 pairs of groups drive a common action (8&#8239;%), and 12 read a common input (33&#8239;%). The bugs that cost most in this study were invisible to that measure. Liquor import and colony founding share no weight; they share gold. Every module that spends a resource is coupled to every other one that does, so a team cannot rely on module-level tests: each change needs the full benchmark, and shared resources need to become explicit interfaces, for instance a gold budget per module. How many agents such a team needs, and how the cost of integration grows with the size of the network, this study cannot say; it had one agent and no subagents.</p>
+<p><b>A test.</b> Rebuild the advisor with one agent per group of Table 4, each given only its group's units, the feature definitions, its priority band and the benchmark, and a coordinating agent that merges changes after a full benchmark run. Compare the time to reach the Charter on all development islands and the held-out result against the single-programmer net, and count how many regressions the integration test catches that the module-level tests did not.</p>
+
+<h2>9&ensp;Limitations</h2>
+<p>The hand-written net was developed on the development islands; only the 30 test islands give an unbiased comparison, and 30 islands without confidence intervals leave differences of one or two Charters within noise. Each PPO configuration was trained once, with one seed, and only five configurations were tried. The checkpoint rule (best sampled validation score) was fixed before testing; the final weights, also reported, were better for greedy play. The programmer was an AI agent with full access to the source code, the simulator and single-game traces, steered by a person; a human programmer, or one without traces, may need far longer. Progress weights (1/3/6/10) are a choice. The planner fixes changed the environment during the study; all final numbers use the final environment, while the rows of Tables 1 and 2 each use the environment of their time. Token costs are estimates.</p>
+
+<h2>10&ensp;Conclusion</h2>
+<p>For a small policy over engineered features, writing the weights by hand was feasible, fast and fully interpretable, and it exposed defects that capped every method. Alone it overfits what its author saw and is beaten on unseen islands by reinforcement learning. Used as the starting point for reinforcement learning, it gives the best policy we found, at the same compute as RL from scratch, and with a sparsity mask the result remains a network whose every hand-written unit can still be read and whose changes by RL can be reviewed like a code diff. The game now ships that combination: the hand-written net fine-tuned with the sparsity mask. The study suggests a division of labour: the programmer writes the structure and the knowledge that is easy to state, reinforcement learning tunes what is hard to state, and the network stays a program.</p>
+
+<h2>Reproduction</h2>
+<div class="eq">node dev/smoke.js                     # 116 headless assertions
+node dev/handwritten-net-v2.js         # rebuild js/ai-weights.js (WSP v2)
+node dev/explain-net.js                # Table 4 as text
+node dev/train.js                      # BC net → dev/ai-weights-trained.json
+RUN=h60big EP_STEPS=900 EPISODES=56 WORKERS=56 node dev/rl-train.js 200     # PPO
+RUN=wsprlsparse INIT=wsp-v2.json WARMUP=20 SPARSE=1 \
+  EP_STEPS=900 EPISODES=56 WORKERS=56 node dev/rl-train.js 200               # WSP+PPO
+SET=test PPO=h60big,wsprl,wsprlsparse,… node dev/compare.js   # Table 7
+node dev/ablate.js                     # Table 5 → dev/ablation.json
+node paper/build.js                    # this paper</div>
+
+<h2>References</h2>
+<ol class="refs">
+<li><a href="https://rikiyat.github.io/blog/weight-space-programming/">Weight-space programming</a>. Blog post, rikiyat.github.io (accessed November 2026).</li>
+<li>S. Ross, G. Gordon, D. Bagnell. A reduction of imitation learning and structured prediction to no-regret online learning (DAgger). AISTATS 2011.</li>
+<li>J. Schulman, F. Wolski, P. Dhariwal, A. Radford, O. Klimov. Proximal policy optimization algorithms. arXiv:1707.06347, 2017.</li>
+<li>J. Schulman, P. Moritz, S. Levine, M. Jordan, P. Abbeel. High-dimensional continuous control using generalized advantage estimation. ICLR 2016.</li>
+<li>AWS EC2 on-demand pricing, c7a instances, us-east-1 (≈ $0.0513 per vCPU-hour); via <a href="https://calculator.holori.com/aws/ec2/c7a.xlarge/us-east-1">calculator.holori.com</a>, accessed November 2026.</li>
+<li>Anthropic. Claude API pricing and model documentation (Claude Opus 5.5: $4 / $20 per million input / output tokens, cache reads $0.20; Claude Fable 5.1: $10 / $50; earlier: Claude 3 Opus $15 / $75, Claude Opus 4.5 $5 / $25).</li>
+<li>Epoch AI. <a href="https://epoch.ai/data-insights/llm-inference-price-trends">LLM inference prices have fallen rapidly but unequally across tasks</a>. Data insight.</li>
+<li>G. Appenzeller. <a href="https://www.a16z.com/llmflation-llm-inference-cost">Welcome to LLMflation: LLM inference cost is going down fast</a>. Andreessen Horowitz, November 2024.</li>
+<li>MIT FutureTech. <a href="https://futuretech.mit.edu/publication/the-price-of-progress-algorithmic-efficiency-and-the-falling-cost-of-ai-inference">The price of progress: algorithmic efficiency and the falling cost of AI inference</a>. arXiv:2511.23455, 2025.</li>
+</ol>
+</main>
+</body>
+</html>

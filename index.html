@@ -42,6 +42,16 @@
 
 <!-- Bottom toolbar -->
 <div id="toolbar-wrap">
+  <!-- Neural-net advisor: rides on top of the toolbar, whatever its height -->
+  <div id="advisor">
+    <div id="advisor-head">
+      <span>🧠 Advisor</span>
+      <button id="btn-autopilot" title="Let the neural net govern the island">🤖 Auto: OFF</button>
+    </div>
+    <div id="advisor-text">Thinking…</div>
+    <div id="advisor-last"></div>
+    <button id="advisor-apply" class="hidden">Do it</button>
+  </div>
   <div id="hint"></div>
   <div id="toolbar"></div>
 </div>
@@ -51,17 +61,6 @@
 
 <!-- Pause overlay -->
 <div id="pause-overlay" class="hidden"><span>⏸ Paused</span></div>
-
-<!-- Neural-net advisor -->
-<div id="advisor">
-  <div id="advisor-head">
-    <span>🧠 Advisor</span>
-    <button id="btn-autopilot" title="Let the neural net govern the island">🤖 Auto: OFF</button>
-  </div>
-  <div id="advisor-text">Thinking…</div>
-  <div id="advisor-last"></div>
-  <button id="advisor-apply" class="hidden">Do it</button>
-</div>
 
 <!-- Trade modal -->
 <div id="modal-trade" class="modal hidden">
@@ -110,9 +109,9 @@
 <!-- Victory modal -->
 <div id="modal-victory" class="modal hidden">
   <div class="modal-box">
-    <div class="modal-head"><span>👑 Your island flourishes!</span><button class="modal-close" data-close="modal-victory">✕</button></div>
+    <div class="modal-head"><span id="victory-title">👑 Your island flourishes!</span><button class="modal-close" data-close="modal-victory">✕</button></div>
     <div id="victory-body">
-      <p class="victory-line">The Queen sends her regards — 60 Citizens call your island home.</p>
+      <p class="victory-line" id="victory-line">The Queen sends her regards — 60 Citizens call your island home.</p>
       <table id="victory-stats"></table>
       <button id="victory-continue">Continue playing</button>
     </div>

@@ -60,31 +60,43 @@ your save.
 ## 🧠 Neural-net intelligence
 
 The **Advisor** (bottom-left widget) is a real multi-layer perceptron — written
-from scratch in [js/nn.js](js/nn.js), no libraries — that reads 57 features of
+from scratch in [js/nn.js](js/nn.js), no libraries — that reads 67 features of
 your economy (stocks, production rates, population, coverage gaps, chain
-imbalances) and picks the next action out of 20 (what to build, or a trade).
-Placement and road routing are deterministic search on top of the net's choice.
+imbalances, colonies) and picks the next action out of 26 (what to build, or a
+trade). Placement and road routing are deterministic search on top of the net's
+choice; the planner keeps a street grid free so the town never walls its roads in.
 
 - **Advisor mode**: it explains its suggestion; click *Do it* to follow.
-- **🤖 Autopilot**: the net governs the island — builds, paves roads, trades.
+- **🤖 Autopilot**: the net governs the island — builds, paves roads, trades, founds
+  colonies — and plays the game to the Imperial Charter.
 
-The weights in [js/ai-weights.js](js/ai-weights.js) were trained by **behavior
-cloning with DAgger** in a headless harness ([dev/train.js](dev/train.js)):
-the net learns from a rule-based teacher across dozens of self-played islands,
-then re-trains on the states its own policy visits. Benchmark (12 sim-minutes,
-held-out islands, score = tier-weighted population):
+The weights in [js/ai-weights.js](js/ai-weights.js) are a **hand-written network
+fine-tuned by reinforcement learning**:
 
-| policy  | avg score | houses satisfied |
-|---------|-----------|------------------|
-| random  | 283       | 86%              |
-| teacher | 443       | 93%              |
-| **net** | **337**   | **56%**          |
+1. [dev/handwritten-net-v2.js](dev/handwritten-net-v2.js) writes 28 hidden units by
+   hand, each one *need* of the island (food, wood, tools, cloth, a tavern, a
+   colony, spice …), with fixed action priorities — no optimizer. `node
+   dev/explain-net.js` prints every unit.
+2. [dev/rl-train.js](dev/rl-train.js) starts PPO from those weights (`INIT`,
+   `SPARSE=1`: the hand-written zeros stay zero, 36 spare units are added) and
+   tunes the priorities over 200 iterations of 56 sixty-minute games.
 
-Training is noisy, so `dev/train.js` trains several candidate nets and ships
-the one that scores best on held-out islands (validation-based model
-selection). Retrain any time with `node dev/train.js`. The headless test suite
-includes a full autonomy check: the net must grow a fresh island to 25+
-population on its own (it reaches ~260 with ~60 buildings).
+Benchmark on 30 islands never used in development, 60 sim-minutes, the game's own
+greedy action choice ([dev/compare.js](dev/compare.js)):
+
+| policy                                   | Imperial Charter | progress* |
+|------------------------------------------|------------------|-----------|
+| behavior cloning (`dev/train.js`)        | 0/30             | 933       |
+| PPO from scratch (best configuration)    | 14/30            | 2,370     |
+| hand-written only (WSP v2)               | 22/30            | 2,191     |
+| **hand-written + PPO (shipped)**         | **24/30**        | **2,942** |
+
+\* pioneers + 3·settlers + 6·citizens + 10·merchants per island.
+
+The full study — methods, every neuron, ablations, costs — is in
+[paper/paper.pdf](paper/paper.pdf) (rebuild with `node paper/build.js`). The
+headless test suite includes a full autonomy check: the net must grow a fresh
+island to 25+ population on its own.
 
 ## ⛵ Archipelago & colonies
 
@@ -196,7 +208,7 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python mflux nu
 `js/assets.js` loads the manifest at boot; any sprite without a PNG (or a
 headless run) falls back to the procedural drawing in `js/sprites.js`.
 
-Headless test suite: `node dev/smoke.js` (105 assertions — boots the game against
+Headless test suite: `node dev/smoke.js` (115 assertions — boots the game against
 a stubbed DOM and exercises placement, roads, services, growth, production, trade,
 price drift, the merchant ship, expeditions, achievements, pirates, fire, plague
 and save/load). `dev/visual.html` builds out a town deterministically for visual

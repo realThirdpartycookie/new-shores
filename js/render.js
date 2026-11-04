@@ -854,7 +854,7 @@ const Render = (() => {
 
   function cargoRoutes() {
     const kontors = G.buildings.filter(b => b.key === 'kontor' && b.done);
-    const key = kontors.map(k => k.id).join(',');
+    const key = G.seed + ':' + kontors.map(k => k.id).join(',');
     if (cargoCache.key === key) return cargoCache.routes;
     cargoCache = { key, routes: [] };
     const wh = G.buildings.find(b => b.key === 'warehouse');

@@ -1,0 +1,205 @@
+[
+ {
+  "neuron": "(none)",
+  "progress60": 2444.6428571428573,
+  "charters": 14,
+  "citizensOn": 14,
+  "delta": 0
+ },
+ {
+  "neuron": "noMarket",
+  "progress60": 2390.714285714286,
+  "charters": 14,
+  "citizensOn": 14,
+  "delta": -54
+ },
+ {
+  "neuron": "foodNeed",
+  "progress60": 528.0714285714286,
+  "charters": 1,
+  "citizensOn": 6,
+  "delta": -1917
+ },
+ {
+  "neuron": "woodNeed",
+  "progress60": 106.14285714285714,
+  "charters": 0,
+  "citizensOn": 0,
+  "delta": -2339
+ },
+ {
+  "neuron": "toolsNeed",
+  "progress60": 1536.857142857143,
+  "charters": 7,
+  "citizensOn": 7,
+  "delta": -908
+ },
+ {
+  "neuron": "goldNeed",
+  "progress60": 2513.214285714286,
+  "charters": 11,
+  "citizensOn": 14,
+  "delta": 69
+ },
+ {
+  "neuron": "noChapel",
+  "progress60": 2264.285714285714,
+  "charters": 12,
+  "citizensOn": 14,
+  "delta": -180
+ },
+ {
+  "neuron": "town10",
+  "progress60": 2052,
+  "charters": 10,
+  "citizensOn": 13,
+  "delta": -393
+ },
+ {
+  "neuron": "weaverLT",
+  "progress60": 1439.642857142857,
+  "charters": 6,
+  "citizensOn": 14,
+  "delta": -1005
+ },
+ {
+  "neuron": "toolmakerLT",
+  "progress60": 2315.3571428571427,
+  "charters": 13,
+  "citizensOn": 13,
+  "delta": -129
+ },
+ {
+  "neuron": "bakeryLT",
+  "progress60": 2419.6428571428573,
+  "charters": 13,
+  "citizensOn": 14,
+  "delta": -25
+ },
+ {
+  "neuron": "distilleryLT",
+  "progress60": 2366.5714285714284,
+  "charters": 14,
+  "citizensOn": 14,
+  "delta": -78
+ },
+ {
+  "neuron": "growth",
+  "progress60": 0,
+  "charters": 0,
+  "citizensOn": 0,
+  "delta": -2445
+ },
+ {
+  "neuron": "storageFull",
+  "progress60": 2217.714285714286,
+  "charters": 11,
+  "citizensOn": 14,
+  "delta": -227
+ },
+ {
+  "neuron": "foodCrisis",
+  "progress60": 2388.1428571428573,
+  "charters": 13,
+  "citizensOn": 14,
+  "delta": -57
+ },
+ {
+  "neuron": "grainTrigger",
+  "progress60": 2397.8571428571427,
+  "charters": 13,
+  "citizensOn": 14,
+  "delta": -47
+ },
+ {
+  "neuron": "marketTrigger",
+  "progress60": 2251.285714285714,
+  "charters": 13,
+  "citizensOn": 13,
+  "delta": -193
+ },
+ {
+  "neuron": "faithTrigger",
+  "progress60": 2303.5,
+  "charters": 13,
+  "citizensOn": 14,
+  "delta": -141
+ },
+ {
+  "neuron": "funTrigger",
+  "progress60": 1216.5,
+  "charters": 0,
+  "citizensOn": 0,
+  "delta": -1228
+ },
+ {
+  "neuron": "fireTrigger",
+  "progress60": 2128.9285714285716,
+  "charters": 13,
+  "citizensOn": 13,
+  "delta": -316
+ },
+ {
+  "neuron": "towerTrigger",
+  "progress60": 2373.8571428571427,
+  "charters": 14,
+  "citizensOn": 14,
+  "delta": -71
+ },
+ {
+  "neuron": "sheepTrigger",
+  "progress60": 1706.142857142857,
+  "charters": 5,
+  "citizensOn": 14,
+  "delta": -739
+ },
+ {
+  "neuron": "mineTrigger",
+  "progress60": 2168.3571428571427,
+  "charters": 12,
+  "citizensOn": 13,
+  "delta": -276
+ },
+ {
+  "neuron": "potatoTrigger",
+  "progress60": 2407.714285714286,
+  "charters": 13,
+  "citizensOn": 14,
+  "delta": -37
+ },
+ {
+  "neuron": "colonyTrigger",
+  "progress60": 1855.0714285714287,
+  "charters": 0,
+  "citizensOn": 14,
+  "delta": -590
+ },
+ {
+  "neuron": "liquorImport",
+  "progress60": 1770.9285714285713,
+  "charters": 5,
+  "citizensOn": 11,
+  "delta": -674
+ },
+ {
+  "neuron": "liquorImportEarly",
+  "progress60": 2188.214285714286,
+  "charters": 12,
+  "citizensOn": 12,
+  "delta": -256
+ },
+ {
+  "neuron": "clothImport",
+  "progress60": 2445.214285714286,
+  "charters": 13,
+  "citizensOn": 13,
+  "delta": 1
+ },
+ {
+  "neuron": "spiceTrigger",
+  "progress60": 1957.7857142857142,
+  "charters": 0,
+  "citizensOn": 14,
+  "delta": -487
+ }
+]

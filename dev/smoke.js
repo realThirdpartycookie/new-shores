@@ -295,6 +295,13 @@ src += `
     }
   }
   assert(!!kpos, 'found a kontor spot on a foreign island');
+  let homeKontor = false;
+  for (let y = 0; y < MAPH && !homeKontor; y++) {
+    for (let x = 0; x < MAPW && !homeKontor; x++) {
+      if (islandAt(x, y) === homeIsl && canPlace('kontor', x, y, true).ok) homeKontor = true;
+    }
+  }
+  assert(!homeKontor, 'no kontor on the home island');
   const capBefore = storageCap();
   placeBuilding('kontor', kpos.x, kpos.y, true);
   assert(storageCap() === capBefore + 150, 'kontor adds 150 storage');
@@ -304,7 +311,7 @@ src += `
   assert(!farRoad || G.roadOk[idx(kpos.x - 1, kpos.y)] === 1, 'roads connect to the kontor as a base');
 
   console.log('-- fire --');
-  const victim = G.buildings.find(b => b.done && BUILDINGS[b.key].prod);
+  const victim = G.buildings.find(b => b.done && BUILDINGS[b.key].prod && !fireCovered(b));
   assert(!!victim, 'found a building to torch');
   ignite(victim);
   assert(victim.fire != null, 'building caught fire');
@@ -449,8 +456,23 @@ src += `
   UI.updateHUD();
   assert(G.victoryShown === true, 'victory screen triggers once on flourish');
   G.flourished = false; G.victoryShown = false;
+  G.chartered = true;
+  UI.updateHUD();
+  assert(G.charterShown === true, 'charter screen triggers at the end of the game');
+  G.chartered = false; G.charterShown = false;
+
+  console.log('-- storage over cap --');
+  const capNow = storageCap();
+  G.stock.cloth = capNow + 40;
+  addStock('cloth', 5);
+  assert(G.stock.cloth === capNow + 40, 'adding to an over-cap stock never cuts it down');
+  G.stock.cloth = 0;
+  assert(addStock('cloth', 7) === 7 && G.stock.cloth === 7, 'addStock returns the amount added');
 
   console.log('-- save / load --');
+  const savedSick = G.buildings.find(b => b.key === 'house' && b.done);
+  sicken(savedSick);
+  const sickAt = [savedSick.x, savedSick.y];
   assert(saveGame(), 'saved');
   const popBefore = popOf(0), bCount = G.buildings.length, goldSaved = Math.floor(G.stock.gold);
   newGame(999); // wipe
@@ -461,6 +483,7 @@ src += `
   assert(G.popHist.length > 5, 'population history survives save/load');
   assert(G.expeditionsDone === 1, 'expedition count survives save/load');
   assert(G.achievements.tycoon != null, 'achievements survive save/load');
+  assert(G.grid[idx(sickAt[0], sickAt[1])].sick != null, 'plague survives save/load');
   for (let i = 0; i < 40; i++) simTick(0.5); // sim keeps running after load
   assert(true, 'sim runs after load without throwing');
 

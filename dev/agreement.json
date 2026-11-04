@@ -1,0 +1,14 @@
+{
+ "Old advisor (BC, as shipped)": {
+  "agreement": 0.47634920634920636,
+  "satisfied": 0.7043859156511484
+ },
+ "BC net (retrained)": {
+  "agreement": 0.6642857142857143,
+  "satisfied": 0.9198164472889747
+ },
+ "WSP v2": {
+  "agreement": 0.24682539682539684,
+  "satisfied": 0.7845719661335842
+ }
+}

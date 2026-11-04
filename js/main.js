@@ -11,6 +11,8 @@
   let lastDragTile = null;
 
   function setTool(t) {
+    // picking the active tool again puts it away (touch has no right-click)
+    if (t && tool && t.mode === tool.mode && t.key === tool.key) { cancelTool(); return; }
     if (t && t.mode === 'build' && BUILDINGS[t.key].tier > G.unlocked) {
       UI.toastMsg(`Locked — unlocks with ${TIERS[BUILDINGS[t.key].tier - 1].name}.`);
       return;
@@ -142,6 +144,55 @@
     Render.zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.15 : 1 / 1.15);
   }, { passive: false });
 
+  /* ---------------- touch ----------------
+   * One finger acts as the left mouse button (tap = click, drag = pan or
+   * paint with a tool); two fingers pan and pinch-zoom. A tool is put away
+   * by tapping its toolbar button again. */
+  const mouseAt = (type, t) => canvas.dispatchEvent(new MouseEvent(type, {
+    clientX: t.clientX, clientY: t.clientY, button: 0, bubbles: true,
+  }));
+  let pinch = null; // { d, x, y } of the last two-finger frame
+
+  const twoFinger = ts => ({
+    d: Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY),
+    x: (ts[0].clientX + ts[1].clientX) / 2,
+    y: (ts[0].clientY + ts[1].clientY) / 2,
+  });
+
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      mouseAt('mousemove', e.touches[0]); // so the drag starts where the finger is
+      mouseAt('mousedown', e.touches[0]);
+    } else if (e.touches.length === 2) {
+      // the first finger was not a tap or a stroke after all
+      mouse.leftDown = false;
+      lastDragTile = null;
+      pinch = twoFinger(e.touches);
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && !pinch) mouseAt('mousemove', e.touches[0]);
+    else if (e.touches.length === 2 && pinch) {
+      const now = twoFinger(e.touches);
+      const dx = now.x - pinch.x, dy = now.y - pinch.y;
+      Render.cam.x += dx; Render.cam.y += dy;
+      Render.camT.x += dx; Render.camT.y += dy;
+      if (pinch.d > 0) Render.zoomAt(now.x, now.y, now.d / pinch.d);
+      pinch = now;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    if (!e.touches.length) {
+      if (!pinch) mouseAt('mouseup', e.changedTouches[0]);
+      pinch = null;
+    }
+  }, { passive: false });
+
   /* ---------------- minimap ---------------- */
   let mmDown = false;
   const mmJump = e => {
@@ -190,6 +241,7 @@
     }
   });
   window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+  window.addEventListener('blur', () => keys.clear()); // keyups never arrive while unfocused
 
   function keyPan(dt) {
     const v = 480 * dt;
